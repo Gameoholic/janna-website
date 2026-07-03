@@ -1,0 +1,22 @@
+{
+  "name": "janna-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal platform for one person: Видео / Файлы / Напоминания",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w server && npm run build -w web",
+    "check": "npm run check -w server && npm run check -w web",
+    "start": "node server/dist/index.js",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "gen:icons": "node scripts/gen-icons.js",
+    "gen:alarm": "node scripts/gen-alarm.js"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
+  }
+}

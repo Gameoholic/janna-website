@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      - DATA_DIR=/data
+      - PORT=8077
+      - PUBLIC_ORIGIN=${PUBLIC_ORIGIN:-}
+      - TZ=${TZ:-Europe/Moscow}
+    volumes:
+      - ./data:/data
+    # Only needed for LAN access without the tunnel; cloudflared reaches the
+    # app over the compose network either way.
+    ports:
+      - "8077:8077"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
