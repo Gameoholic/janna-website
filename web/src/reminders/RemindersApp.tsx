@@ -1,25 +1,21 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ReminderInfo } from '../shared/api';
 import { onRemindersChanged } from '../shared/alarm';
 import { requestNotificationPermission } from '../shared/push';
 import { ConfirmDialog, Dialog, showToast, TopBar } from '../shared/ui';
-import { IconBell, IconCheck, IconPlus } from '../shared/icons';
+import { IconBack, IconBell, IconChevronDown, IconPlus } from '../shared/icons';
 import {
   addDays,
   dayKey,
   fmtDate,
   fmtIn,
   fmtTime,
-  plural,
   startOfDay,
 } from '../shared/russian';
 import { t } from '../shared/i18n';
 import { Calendar, TimeStepper } from './Calendar';
 
-type Stage = { t: 'home' } | { t: 'create' };
-
 export function RemindersApp() {
-  const [stage, setStage] = useState<Stage>({ t: 'home' });
   const [reminders, setReminders] = useState<ReminderInfo[]>([]);
   const [rangeMonth, setRangeMonth] = useState<{ year: number; month: number }>(() => {
     const d = new Date();
@@ -27,6 +23,7 @@ export function RemindersApp() {
   });
   const [selectedDay, setSelectedDay] = useState<number>(() => startOfDay(Date.now()));
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
     const monthStart = new Date(rangeMonth.year, rangeMonth.month, 1).getTime();
@@ -44,31 +41,29 @@ export function RemindersApp() {
     return onRemindersChanged(() => void load());
   }, [load]);
 
-  if (stage.t === 'create') {
-    return (
-      <CreateStage
-        onBack={() => setStage({ t: 'home' })}
+  return (
+    <>
+      <HomeStage
+        reminders={reminders}
+        selectedDay={selectedDay}
+        highlightId={highlightId}
+        onSelectDay={setSelectedDay}
+        onMonthChange={(year, month) => setRangeMonth({ year, month })}
+        onAdd={() => setCreateOpen(true)}
+        onChanged={() => void load()}
+      />
+      <CreateReminderDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
         onCreated={(reminder) => {
-          setStage({ t: 'home' });
+          setCreateOpen(false);
           setHighlightId(reminder.id);
           setSelectedDay(startOfDay(reminder.dueAt));
           window.setTimeout(() => setHighlightId(null), 6000);
           void load();
         }}
       />
-    );
-  }
-
-  return (
-    <HomeStage
-      reminders={reminders}
-      selectedDay={selectedDay}
-      highlightId={highlightId}
-      onSelectDay={setSelectedDay}
-      onMonthChange={(year, month) => setRangeMonth({ year, month })}
-      onAdd={() => setStage({ t: 'create' })}
-      onChanged={() => void load()}
-    />
+    </>
   );
 }
 
@@ -100,9 +95,7 @@ function HomeStage(props: {
 
   const marks = useMemo(() => {
     const set = new Set<string>();
-    for (const r of props.reminders) {
-      if (r.status !== 'done') set.add(dayKey(r.dueAt));
-    }
+    for (const r of props.reminders) set.add(dayKey(r.dueAt));
     return set;
   }, [props.reminders]);
 
@@ -191,27 +184,22 @@ function Section(props: { title: string; empty: string; children: ReactNode }) {
 
 function ReminderRow(props: { reminder: ReminderInfo; highlight: boolean; onOpen: () => void }) {
   const { reminder } = props;
-  const done = reminder.status === 'done';
   return (
     <button
       className="list-row"
       style={props.highlight ? { background: 'var(--accent-soft)' } : undefined}
       onClick={props.onOpen}
     >
-      <span
-        className="num"
-        style={{ fontSize: 24, fontWeight: 700, minWidth: 76, color: done ? 'var(--muted)' : 'var(--accent)' }}
-      >
+      <span className="num" style={{ fontSize: 24, fontWeight: 700, minWidth: 76, color: 'var(--accent)' }}>
         {fmtTime(reminder.dueAt)}
       </span>
-      <span className="grow" style={{ color: done ? 'var(--muted)' : undefined }}>
+      <span className="grow">
         {reminder.text}
         {reminder.status === 'ringing' ? <b style={{ color: 'var(--danger)' }}> {t('— звонит!')}</b> : null}
         {reminder.status === 'snoozed' && reminder.snoozeUntil ? (
           <span className="muted small"> {t('— отложено до {time}', { time: fmtTime(reminder.snoozeUntil) })}</span>
         ) : null}
       </span>
-      {done ? <IconCheck size={22} /> : null}
     </button>
   );
 }
@@ -239,7 +227,6 @@ function ReminderDialog(props: { reminder: ReminderInfo; onClose: () => void; on
       <p style={{ fontSize: 21, margin: '4px 0 10px' }}>{reminder.text}</p>
       <p className="num" style={{ margin: '0 0 18px', fontSize: 19 }}>
         {fmtDate(reminder.dueAt)}, <b>{fmtTime(reminder.dueAt)}</b>
-        {reminder.status === 'done' ? <span className="muted"> — {t('уже прозвонило')}</span> : null}
         {reminder.status === 'scheduled' && reminder.dueAt > Date.now() ? (
           <span className="muted"> ({fmtIn(reminder.dueAt - Date.now())})</span>
         ) : null}
@@ -266,9 +253,17 @@ function ReminderDialog(props: { reminder: ReminderInfo; onClose: () => void; on
   );
 }
 
-/* ---------------- Create: date + time + live summary with the numbers ---------------- */
+/* ---------------- Create: a modal so it's never ambiguous whether she's on
+   «Напоминания» or creating one (P2/P3). Two steps inside the same dialog:
+   fill in the details, then a separate confirm screen with all the numbers
+   before anything is actually created. ---------------- */
 
-function CreateStage(props: { onBack: () => void; onCreated: (reminder: ReminderInfo) => void }) {
+function CreateReminderDialog(props: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (reminder: ReminderInfo) => void;
+}) {
+  const [step, setStep] = useState<'form' | 'confirm'>('form');
   const [text, setText] = useState('');
   const [day, setDay] = useState<number>(() => startOfDay(Date.now()));
   const [time, setTime] = useState<{ hour: number; minute: number }>(() => {
@@ -277,6 +272,20 @@ function CreateStage(props: { onBack: () => void; onCreated: (reminder: Reminder
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollMore, setCanScrollMore] = useState(false);
+
+  // Fresh form every time the modal opens.
+  useEffect(() => {
+    if (!props.open) return;
+    setStep('form');
+    setText('');
+    setDay(startOfDay(Date.now()));
+    const d = new Date(Date.now() + 60 * 60_000);
+    setTime({ hour: d.getHours(), minute: Math.floor(d.getMinutes() / 5) * 5 });
+    setError(null);
+    setBusy(false);
+  }, [props.open]);
 
   const dueAt = useMemo(() => {
     const d = new Date(day);
@@ -286,7 +295,24 @@ function CreateStage(props: { onBack: () => void; onCreated: (reminder: Reminder
 
   const inFuture = dueAt > Date.now() + 30_000;
 
-  const create = async () => {
+  // Show a gentle "scroll down" hint only while there's more below the fold —
+  // never once she's reached the bottom, and never anything flashy (Section 9).
+  useEffect(() => {
+    if (!props.open || step !== 'form') return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setCanScrollMore(el.scrollHeight - el.clientHeight - el.scrollTop > 12);
+    check();
+    el.addEventListener('scroll', check);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', check);
+      ro.disconnect();
+    };
+  }, [props.open, step]);
+
+  const goToConfirm = () => {
     if (!text.trim()) {
       setError(t('Напишите, о чём напомнить.'));
       return;
@@ -296,6 +322,10 @@ function CreateStage(props: { onBack: () => void; onCreated: (reminder: Reminder
       return;
     }
     setError(null);
+    setStep('confirm');
+  };
+
+  const create = async () => {
     setBusy(true);
     try {
       const res = await api.post<{ reminder: ReminderInfo }>('/api/reminders', {
@@ -306,62 +336,99 @@ function CreateStage(props: { onBack: () => void; onCreated: (reminder: Reminder
       props.onCreated(res.reminder);
     } catch (e) {
       setError(e instanceof Error ? t(e.message) : t('Не получилось создать напоминание.'));
+      setStep('form');
       setBusy(false);
     }
   };
 
   return (
-    <div className="page" style={{ maxWidth: 620 }}>
-      <TopBar title={t('Новое напоминание')} onBack={props.onBack} />
-      <div className="stack" style={{ gap: 18 }}>
-        <div>
-          <h2 style={{ margin: '0 2px 10px' }}>{t('О чём напомнить?')}</h2>
-          <textarea
-            className="textarea"
-            placeholder={t('Например: занятие по танцам')}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            maxLength={300}
-          />
-        </div>
+    <Dialog
+      open={props.open}
+      full={step === 'form'}
+      title={step === 'form' ? t('Новое напоминание') : t('Проверьте и подтвердите')}
+      onClose={busy ? undefined : props.onClose}
+    >
+      {step === 'form' ? (
+        <>
+          <div className="scroll-hint-wrap grow" style={{ minHeight: 0 }}>
+            <div ref={scrollRef} className="stack" style={{ gap: 18, overflowY: 'auto', height: '100%', paddingBottom: 8 }}>
+              <div>
+                <h2 style={{ margin: '0 2px 10px' }}>{t('О чём напомнить?')}</h2>
+                <textarea
+                  className="textarea"
+                  placeholder={t('Например: занятие по танцам')}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  maxLength={300}
+                  autoFocus
+                />
+              </div>
 
-        <div>
-          <h2 style={{ margin: '0 2px 10px' }}>{t('Какого числа?')}</h2>
-          <div className="card">
-            <Calendar selected={day} onSelect={setDay} marks={new Set()} minDate={Date.now()} />
-          </div>
-        </div>
+              <div>
+                <h2 style={{ margin: '0 2px 10px' }}>{t('Какого числа?')}</h2>
+                <div className="card">
+                  <Calendar selected={day} onSelect={setDay} marks={new Set()} minDate={Date.now()} />
+                </div>
+              </div>
 
-        <div>
-          <h2 style={{ margin: '0 2px 10px' }}>{t('Во сколько?')}</h2>
-          <div className="card">
-            <TimeStepper hour={time.hour} minute={time.minute} onChange={(hour, minute) => setTime({ hour, minute })} />
-          </div>
-        </div>
+              <div>
+                <h2 style={{ margin: '0 2px 10px' }}>{t('Во сколько?')}</h2>
+                <div className="card">
+                  <TimeStepper hour={time.hour} minute={time.minute} onChange={(hour, minute) => setTime({ hour, minute })} />
+                </div>
+              </div>
 
-        {/* The confirmation summary: exact date, weekday, 24h time, static «через …» (8C). */}
-        <div className="card" style={{ background: 'var(--accent-soft)', boxShadow: 'none' }}>
-          <div style={{ fontSize: 21 }}>
-            <b>{fmtDate(dueAt)}</b>, <b className="num">{fmtTime(dueAt)}</b>
+              {error ? (
+                <div className="card" style={{ background: 'var(--danger-soft)', boxShadow: 'none' }}>
+                  {error}
+                </div>
+              ) : null}
+            </div>
+            {canScrollMore ? (
+              <div className="scroll-hint">
+                <IconChevronDown size={22} />
+              </div>
+            ) : null}
           </div>
-          <div className="muted" style={{ marginTop: 4 }}>
-            {inFuture ? fmtIn(dueAt - Date.now()) : t('это время уже прошло')}
-          </div>
-        </div>
 
-        {error ? (
-          <div className="card" style={{ background: 'var(--danger-soft)', boxShadow: 'none' }}>
-            {error}
+          <div className="stack" style={{ marginTop: 14 }}>
+            <button className="btn btn-primary btn-big btn-block" onClick={goToConfirm}>
+              {t('Далее')}
+            </button>
+            <button className="btn btn-ghost btn-block" onClick={props.onClose}>
+              {t('Отмена')}
+            </button>
           </div>
-        ) : null}
+        </>
+      ) : (
+        <>
+          {/* The confirmation summary: exact date, weekday, 24h time, static «через …» (8C). */}
+          <div className="card" style={{ background: 'var(--accent-soft)', boxShadow: 'none', marginBottom: 16 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>{text}</div>
+            <div style={{ fontSize: 21 }}>
+              <b>{fmtDate(dueAt)}</b>, <b className="num">{fmtTime(dueAt)}</b>
+            </div>
+            <div className="muted" style={{ marginTop: 4 }}>
+              {fmtIn(dueAt - Date.now())}
+            </div>
+          </div>
 
-        <button className="btn btn-primary btn-big btn-block" onClick={() => void create()} disabled={busy}>
-          {busy ? t('Создаём…') : t('Создать напоминание')}
-        </button>
-        <button className="btn btn-ghost btn-block" onClick={props.onBack} disabled={busy}>
-          {t('Отмена')}
-        </button>
-      </div>
-    </div>
+          {error ? (
+            <div className="card" style={{ background: 'var(--danger-soft)', boxShadow: 'none', marginBottom: 16 }}>
+              {error}
+            </div>
+          ) : null}
+
+          <div className="stack">
+            <button className="btn btn-primary btn-big btn-block" onClick={() => void create()} disabled={busy}>
+              {busy ? t('Создаём…') : t('Добавить напоминание')}
+            </button>
+            <button className="btn btn-ghost btn-block" onClick={() => setStep('form')} disabled={busy}>
+              <IconBack size={20} /> {t('Назад')}
+            </button>
+          </div>
+        </>
+      )}
+    </Dialog>
   );
 }

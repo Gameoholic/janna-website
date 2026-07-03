@@ -160,7 +160,7 @@ This is the single most important instruction for you as the builder:
 **Purpose:** a simple, reliable place for her files, replacing the mess of keeping everything across WhatsApp chats (which desyncs between phone and PC, and where finding things is hard). Files are photos, videos, audio, occasionally other types.
 
 **Intent (immutable):**
-- **WhatsApp mental model:** **folders in a left sidebar, contents on the right.** **Nested folders** supported (folders within folders).
+- **WhatsApp mental model:** **folders in a left sidebar, contents on the right.** Folders are a **single flat level** — no folders within folders. This keeps «Куда переместить?» a one-step pick from a plain list, on both the phone and the video editor's save/pick flows.
 - She must be able to **find things easily** — including **forgiving, typo-tolerant fuzzy search by filename**.
 - Actions are **simple and forgiving**; nothing destructive happens by a single stray tap.
 - **Move** is explicit and understandable: a **button → choose the destination folder from a clear picker → confirm.** **Never** drag-and-drop, **never** manual path entry, **never** a single tap that commits the move — always a confirm step.
@@ -274,3 +274,9 @@ A website — even an installed PWA — **cannot force-launch itself when it is 
 
 ### Changelog
 - **v1** — initial full draft.
+- **v1.1** — folders are flat (no nesting) everywhere, including the shared
+  Picker used for move/save/pick-video; each app got a «На главную» button
+  back to the app chooser; reminder creation moved into a modal with a
+  separate confirm step; a dismissed reminder is deleted, not kept marked
+  "done"; the alarm tune and the shared video player controls were reworked
+  for clarity.

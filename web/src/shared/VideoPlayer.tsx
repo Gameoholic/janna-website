@@ -7,7 +7,8 @@ import { t } from './i18n';
  * Plain playback with our own always-visible controls (P12, shared): native
  * `<video controls>` fades its bar out during playback with no way to stop
  * that from the page, which would leave her without a visible «Пауза»
- * button. Play/pause + scrub live below the video instead and never hide.
+ * button. Instead the control bar sits overlaid on the video — like YouTube
+ * / WhatsApp — but never fades or hides itself.
  */
 export function VideoPlayer(props: {
   src: string;
@@ -18,6 +19,7 @@ export function VideoPlayer(props: {
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
+  const [started, setStarted] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
 
@@ -62,8 +64,11 @@ export function VideoPlayer(props: {
     draggingRef.current = false;
   };
 
+  const progress = durationMs > 0 ? (positionMs / durationMs) * 100 : 0;
+  const radius = (props.style?.borderRadius as CSSProperties['borderRadius']) ?? 0;
+
   return (
-    <div>
+    <div style={{ position: 'relative', lineHeight: 0, overflow: 'hidden', borderRadius: radius }}>
       <video
         ref={videoRef}
         src={props.src}
@@ -71,19 +76,29 @@ export function VideoPlayer(props: {
         playsInline
         preload="metadata"
         onContextMenu={(e) => e.preventDefault()}
-        onPlay={() => setPlaying(true)}
+        onClick={togglePlay}
+        onPlay={() => {
+          setPlaying(true);
+          setStarted(true);
+        }}
         onPause={() => setPlaying(false)}
         onLoadedMetadata={(e) => setDurationMs(e.currentTarget.duration * 1000)}
-        style={props.style}
+        style={{ ...props.style, cursor: 'pointer' }}
       />
-      <div className="row" style={{ gap: 12, marginTop: 10 }}>
+
+      {!playing ? (
+        <button className="video-center-play" onClick={togglePlay} aria-label={playing ? t('Пауза') : t('Смотреть')}>
+          <IconPlay size={34} />
+        </button>
+      ) : null}
+
+      <div className="video-overlay-bar">
         <button
-          className="btn btn-primary"
-          style={{ minWidth: 56 }}
+          className="video-overlay-btn"
           onClick={togglePlay}
           aria-label={playing ? t('Пауза') : t('Смотреть')}
         >
-          {playing ? <IconPause size={26} /> : <IconPlay size={26} />}
+          {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
         </button>
         <div
           ref={trackRef}
@@ -92,11 +107,11 @@ export function VideoPlayer(props: {
           onPointerMove={onTrackMove}
           onPointerUp={onTrackUp}
         >
-          <div className="seek-fill" style={{ width: `${(positionMs / Math.max(1, durationMs)) * 100}%` }} />
-          <div className="seek-playhead" style={{ left: `${(positionMs / Math.max(1, durationMs)) * 100}%` }} />
+          <div className="seek-fill" style={{ width: `${progress}%` }} />
+          <div className="seek-thumb" style={{ left: `${progress}%` }} />
         </div>
-        <div className="num small" style={{ minWidth: 96, textAlign: 'right', flex: '0 0 auto' }}>
-          {fmtDuration(positionMs)} / {fmtDuration(durationMs)}
+        <div className="video-overlay-time num">
+          {fmtDuration(started ? positionMs : 0)} / {fmtDuration(durationMs)}
         </div>
       </div>
     </div>

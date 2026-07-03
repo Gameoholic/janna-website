@@ -12,7 +12,6 @@ import { log } from '../log';
 export interface FolderRow {
   id: string;
   name: string;
-  parent_id: string | null;
   created_at: number;
 }
 
@@ -155,32 +154,13 @@ function uniqueNameInFolder(name: string, folderId: string | null): string {
   return `${base} (${Date.now()})${ext}`;
 }
 
+// Folders are a single flat level now — a file's path is at most one folder.
 export function folderPath(folderId: string | null): { id: string; name: string }[] {
-  const chain: { id: string; name: string }[] = [];
-  let current = folderId;
-  let guard = 0;
-  while (current && guard++ < 50) {
-    const row = db.prepare('SELECT id, name, parent_id FROM folders WHERE id = ?').get(current) as
-      | (FolderRow & { parent_id: string | null })
-      | undefined;
-    if (!row) break;
-    chain.unshift({ id: row.id, name: row.name });
-    current = row.parent_id;
-  }
-  return chain;
-}
-
-function isDescendant(candidate: string, ancestor: string): boolean {
-  let current: string | null = candidate;
-  let guard = 0;
-  while (current && guard++ < 50) {
-    if (current === ancestor) return true;
-    const row = db.prepare('SELECT parent_id FROM folders WHERE id = ?').get(current) as
-      | { parent_id: string | null }
-      | undefined;
-    current = row ? row.parent_id : null;
-  }
-  return false;
+  if (!folderId) return [];
+  const row = db.prepare('SELECT id, name FROM folders WHERE id = ?').get(folderId) as
+    | { id: string; name: string }
+    | undefined;
+  return row ? [{ id: row.id, name: row.name }] : [];
 }
 
 export function moveBinaryToTrash(row: Pick<FileRow, 'id' | 'path' | 'thumb_path' | 'name'>): void {
@@ -231,7 +211,6 @@ filesRouter.get('/state', (_req, res) => {
     folders: folders.map((f) => ({
       id: f.id,
       name: f.name,
-      parentId: f.parent_id,
       fileCount: countMap[f.id] || 0,
     })),
     rootFileCount: rootCount,
@@ -252,23 +231,13 @@ filesRouter.get('/folders/:id/files', (req, res) => {
 
 filesRouter.post('/folders', (req, res) => {
   const name = String(req.body?.name || '').trim().slice(0, 100);
-  const parentId = req.body?.parentId ? String(req.body.parentId) : null;
   if (!name) {
     res.status(400).json({ message: 'Введите название папки.' });
     return;
   }
-  if (parentId && !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(parentId)) {
-    res.status(404).json({ message: 'Папка не найдена.' });
-    return;
-  }
   const folderId = id();
-  db.prepare('INSERT INTO folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)').run(
-    folderId,
-    name,
-    parentId,
-    now()
-  );
-  res.json({ id: folderId, name, parentId, fileCount: 0 });
+  db.prepare('INSERT INTO folders (id, name, created_at) VALUES (?, ?, ?)').run(folderId, name, now());
+  res.json({ id: folderId, name, fileCount: 0 });
 });
 
 filesRouter.patch('/folders/:id', (req, res) => {
@@ -285,42 +254,20 @@ filesRouter.patch('/folders/:id', (req, res) => {
     }
     db.prepare('UPDATE folders SET name = ? WHERE id = ?').run(name, folder.id);
   }
-  if ('parentId' in (req.body || {})) {
-    const parentId = req.body.parentId ? String(req.body.parentId) : null;
-    if (parentId) {
-      if (!db.prepare('SELECT 1 FROM folders WHERE id = ?').get(parentId)) {
-        res.status(404).json({ message: 'Папка не найдена.' });
-        return;
-      }
-      if (parentId === folder.id || isDescendant(parentId, folder.id)) {
-        res.status(400).json({ message: 'Нельзя переместить папку внутрь неё самой.' });
-        return;
-      }
-    }
-    db.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').run(parentId, folder.id);
-  }
   res.json({ ok: true });
 });
 
-/** Recursive, deliberate delete: binaries land in trash, never vanish silently. */
+/** Deliberate delete: binaries land in trash, never vanish silently. */
 filesRouter.delete('/folders/:id', (req, res) => {
   const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id) as FolderRow | undefined;
   if (!folder) {
     res.status(404).json({ message: 'Папка не найдена.' });
     return;
   }
-  const allIds: string[] = [];
-  const collect = (fid: string) => {
-    allIds.push(fid);
-    const children = db.prepare('SELECT id FROM folders WHERE parent_id = ?').all(fid) as { id: string }[];
-    for (const child of children) collect(child.id);
-  };
-  collect(folder.id);
-  const placeholders = allIds.map(() => '?').join(',');
-  const files = db.prepare(`SELECT * FROM files WHERE folder_id IN (${placeholders})`).all(...allIds) as FileRow[];
+  const files = db.prepare('SELECT * FROM files WHERE folder_id = ?').all(folder.id) as FileRow[];
   for (const f of files) moveBinaryToTrash(f);
-  db.prepare(`DELETE FROM files WHERE folder_id IN (${placeholders})`).run(...allIds);
-  db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id); // children cascade
+  db.prepare('DELETE FROM files WHERE folder_id = ?').run(folder.id);
+  db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id);
   log.info(`folder deleted: ${folder.name} (${files.length} files to trash)`);
   res.json({ ok: true });
 });

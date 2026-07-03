@@ -78,7 +78,6 @@ export function uploadWithProgress(
 export interface FolderInfo {
   id: string;
   name: string;
-  parentId: string | null;
   fileCount: number;
 }
 
@@ -111,7 +110,7 @@ export interface ReminderInfo {
   id: string;
   text: string;
   dueAt: number;
-  status: 'scheduled' | 'ringing' | 'snoozed' | 'done';
+  status: 'scheduled' | 'ringing' | 'snoozed';
   snoozeUntil: number | null;
   snoozeUsed: boolean;
   createdAt: number;

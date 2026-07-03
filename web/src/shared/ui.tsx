@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { IconBack } from './icons';
+import { IconBack, IconHome } from './icons';
 import { t } from './i18n';
 
 /** Shared building blocks (P12): the same controls in all three apps. */
@@ -65,6 +65,11 @@ export function ConfirmDialog(props: {
   );
 }
 
+/**
+ * The left slot is «Назад» on a nested screen, or — when there's nowhere to
+ * go back to — a «На главную» button (P12) back to the app chooser at «/».
+ * She's never stranded without a way back (Section 9).
+ */
 export function TopBar(props: { title: string; onBack?: () => void; right?: ReactNode }) {
   return (
     <div className="topbar">
@@ -72,7 +77,18 @@ export function TopBar(props: { title: string; onBack?: () => void; right?: Reac
         <button className="btn btn-ghost" onClick={props.onBack} aria-label={t('Назад')} style={{ minWidth: 56 }}>
           <IconBack size={26} />
         </button>
-      ) : null}
+      ) : (
+        <button
+          className="btn btn-ghost"
+          onClick={() => {
+            window.location.href = '/';
+          }}
+          aria-label={t('На главную')}
+          style={{ minWidth: 56 }}
+        >
+          <IconHome size={24} />
+        </button>
+      )}
       <h1>{props.title}</h1>
       {props.right}
     </div>

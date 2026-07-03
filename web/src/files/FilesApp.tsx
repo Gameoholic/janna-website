@@ -184,7 +184,7 @@ export function FilesApp() {
     if (!name) return;
     setBusy(true);
     try {
-      const folder = await api.post<FolderInfo>('/api/folders', { name }); // no parentId → top level
+      const folder = await api.post<FolderInfo>('/api/folders', { name });
       setNewFolderOpen(false);
       setNewFolderName('');
       await loadState();

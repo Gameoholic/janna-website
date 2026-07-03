@@ -9,10 +9,9 @@ export interface ReminderRow {
   text: string;
   due_at: number;
   created_at: number;
-  status: 'scheduled' | 'ringing' | 'snoozed' | 'done';
+  status: 'scheduled' | 'ringing' | 'snoozed';
   snooze_until: number | null;
   snooze_used: number;
-  dismissed_at: number | null;
 }
 
 /** Dev-only, global to all reminders (8C): heads-up pushes before the alarm. */

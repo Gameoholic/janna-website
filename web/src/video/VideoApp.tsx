@@ -367,16 +367,24 @@ function EditStage(props: {
         }}
       />
 
-      <video
-        ref={videoRef}
-        src={`/api/edit/sessions/${session.id}/media`}
-        playsInline
-        preload="metadata"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onContextMenu={(e) => e.preventDefault()}
-        style={{ width: '100%', maxHeight: '44vh', background: '#000', borderRadius: 14, display: 'block' }}
-      />
+      <div style={{ position: 'relative', lineHeight: 0, overflow: 'hidden', borderRadius: 14 }}>
+        <video
+          ref={videoRef}
+          src={`/api/edit/sessions/${session.id}/media`}
+          playsInline
+          preload="metadata"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onContextMenu={(e) => e.preventDefault()}
+          onClick={togglePlay}
+          style={{ width: '100%', maxHeight: '44vh', background: '#000', display: 'block', cursor: 'pointer' }}
+        />
+        {!playing ? (
+          <button className="video-center-play" onClick={togglePlay} aria-label={t('Смотреть')}>
+            <IconPlay size={30} />
+          </button>
+        ) : null}
+      </div>
 
       <div className="row" style={{ margin: '12px 0' }}>
         <button className="btn btn-primary" style={{ minWidth: 76 }} onClick={togglePlay} aria-label={playing ? t('Пауза') : t('Смотреть')}>

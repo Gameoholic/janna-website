@@ -14,6 +14,7 @@ export const EN: Record<string, string> = {
   'Закрыть': 'Close',
   'Готово': 'Done',
   'Назад': 'Back',
+  'На главную': 'Home',
   'Сохранить': 'Save',
   'Это устройство ещё не подключено': 'This device is not connected yet',
   'Чтобы всё заработало, нужно один раз открыть на этом устройстве специальную ссылку. Позвоните Даниилу — он поможет.':
@@ -28,10 +29,10 @@ export const EN: Record<string, string> = {
   // ---- shared: Picker / files ----
   'Все файлы': 'All files',
   'Открыть': 'Open',
-  'Без папки': 'No folder',
   'Действия': 'Actions',
   'Выберите папку': 'Choose a folder',
-  'Откройте папку или создайте новую.': 'Open a folder or create a new one.',
+  'Выберите папку из списка.': 'Choose a folder from the list.',
+  'Папок пока нет.': 'No folders yet.',
   'У вас пока нет папок.': "You don't have any folders yet.",
   'Создайте папку, чтобы сохранять туда файлы.': 'Create a folder to save files into.',
   'Слева выберите папку, чтобы увидеть файлы.': 'Choose a folder on the left to see its files.',
@@ -40,7 +41,6 @@ export const EN: Record<string, string> = {
   'Папка:': 'Folder:',
   'Загрузка…': 'Loading…',
   'Здесь нет видео.': 'No videos here.',
-  'Здесь нет вложенных папок.': 'No subfolders here.',
   'Новая папка': 'New folder',
   'Название папки': 'Folder name',
   'Создать': 'Create',
@@ -204,7 +204,6 @@ export const EN: Record<string, string> = {
   'Добавить напоминание': 'Add reminder',
   '— звонит!': '— ringing!',
   '— отложено до {time}': '— snoozed until {time}',
-  'уже прозвонило': 'already rang',
   'Удалить напоминание': 'Delete reminder',
   'Напоминание удалено': 'Reminder deleted',
   'Удалить напоминание?': 'Delete reminder?',
@@ -219,7 +218,7 @@ export const EN: Record<string, string> = {
   'Это время уже прошло. Выберите время в будущем.': 'That time has already passed. Choose a time in the future.',
   'Напоминание создано': 'Reminder created',
   'Не получилось создать напоминание.': 'Could not create the reminder.',
-  'Создать напоминание': 'Create reminder',
+  'Далее': 'Next',
 
   // ---- reminders: Calendar ----
   'Прошлый месяц': 'Previous month',

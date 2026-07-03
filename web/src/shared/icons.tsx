@@ -80,6 +80,7 @@ export const IconSpeed = ({ size }: IconProps) =>
 export const IconBell = ({ size }: IconProps) =>
   svg(<path d="M18 9a6 6 0 10-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9zM10 19.6a2.2 2.2 0 004 0" />, size);
 export const IconChevron = ({ size }: IconProps) => svg(<path d="M9 6l6 6-6 6" />, size);
+export const IconChevronDown = ({ size }: IconProps) => svg(<path d="M6 9l6 6 6-6" />, size);
 export const IconFile = ({ size }: IconProps) =>
   svg(<path d="M6 3h8l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zm8 0v5h5" />, size);
 export const IconCamera = ({ size }: IconProps) =>
@@ -88,6 +89,8 @@ export const IconNote = ({ size }: IconProps) =>
   svg(<path d="M9 18a3 3 0 11-3-3c.4 0 .7 0 1 .2V6l11-2v11a3 3 0 11-3-3c.4 0 .7 0 1 .2" />, size);
 export const IconUpload = ({ size }: IconProps) =>
   svg(<path d="M12 16V5m-5 5l5-5 5 5M5 20h14" />, size);
+export const IconHome = ({ size }: IconProps) =>
+  svg(<path d="M4 11.5L12 4l8 7.5M6 10v9a1 1 0 001 1h3v-6h4v6h3a1 1 0 001-1v-9" />, size);
 export const IconMore = ({ size }: IconProps) =>
   svg(
     <g fill="currentColor" stroke="none">

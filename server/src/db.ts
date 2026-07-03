@@ -97,6 +97,16 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // Folders are flat now (no nesting, see master-prompt 8B changelog) — drop
+  // the now-unused parent_id column.
+  `
+  ALTER TABLE folders DROP COLUMN parent_id;
+  `,
+  // A dismissed reminder is deleted, not kept around marked "done" — drop the
+  // now-unused column.
+  `
+  ALTER TABLE reminders DROP COLUMN dismissed_at;
+  `,
 ];
 
 export function migrate(): void {

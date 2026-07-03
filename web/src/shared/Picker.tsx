@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, FileInfo, FolderInfo } from './api';
 import { ConfirmDialog, Dialog, showToast } from './ui';
-import { IconBack, IconCamera, IconChevron, IconFolder, IconPlus } from './icons';
+import { IconBack, IconCamera, IconCheck, IconChevron, IconFolder, IconPlus } from './icons';
 import { fmtDuration } from './russian';
 import { t } from './i18n';
 
 /**
  * THE folder picker (P12): one shared component for moving files, saving
- * edited videos and picking a video to edit. Tap into folders like WhatsApp
- * chats; a big labelled button confirms the destination. Never drag-and-drop,
- * never a path to type (8B).
+ * edited videos and picking a video to edit. Folders are a single flat level
+ * (no nesting) — a plain list. Never drag-and-drop, never a path to type,
+ * never a single tap that commits (8B): tap a folder to select it, then a
+ * big labelled button confirms the destination.
  */
 
 interface BaseProps {
@@ -34,12 +35,12 @@ interface VideoModeProps extends BaseProps {
 
 type PickerProps = FolderModeProps | VideoModeProps;
 
-// Top level is not a folder she created — a file here just isn't in any folder.
-const ROOT_NAME = 'Без папки';
-
 export function Picker(props: PickerProps) {
   const [folders, setFolders] = useState<FolderInfo[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Video mode only: which folder's videos are being browsed. This is just
+  // browsing a flat folder's contents, not folder nesting.
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [videos, setVideos] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
@@ -47,11 +48,8 @@ export function Picker(props: PickerProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const byId = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
-  const children = useMemo(
-    () => folders.filter((f) => f.parentId === currentId),
-    [folders, currentId]
-  );
-  const currentName = currentId ? byId.get(currentId)?.name || t(ROOT_NAME) : t(ROOT_NAME);
+  const selectedFolder = selectedId ? byId.get(selectedId) || null : null;
+  const openFolderName = openFolderId ? byId.get(openFolderId)?.name || '' : '';
 
   const loadFolders = async () => {
     try {
@@ -64,17 +62,21 @@ export function Picker(props: PickerProps) {
 
   useEffect(() => {
     if (!props.open) return;
-    setCurrentId(null);
+    setSelectedId(null);
+    setOpenFolderId(null);
     setConfirmOpen(false);
     setLoading(true);
     void loadFolders().then(() => setLoading(false));
   }, [props.open]);
 
   useEffect(() => {
-    if (!props.open || props.mode !== 'video') return;
+    if (!props.open || props.mode !== 'video' || !openFolderId) {
+      setVideos([]);
+      return;
+    }
     let cancelled = false;
     void api
-      .get<{ files: FileInfo[] }>(`/api/edit/pickable?folderId=${currentId || 'root'}`)
+      .get<{ files: FileInfo[] }>(`/api/edit/pickable?folderId=${openFolderId}`)
       .then(({ files }) => {
         if (!cancelled) setVideos(files);
       })
@@ -84,20 +86,15 @@ export function Picker(props: PickerProps) {
     return () => {
       cancelled = true;
     };
-  }, [props.open, props.mode, currentId, folders]);
+  }, [props.open, props.mode, openFolderId]);
 
   if (!props.open) return null;
-
-  const goUp = () => {
-    const current = currentId ? byId.get(currentId) : null;
-    setCurrentId(current ? current.parentId : null);
-  };
 
   const createFolder = async () => {
     const name = newFolderName.trim();
     if (!name) return;
     try {
-      await api.post('/api/folders', { name, parentId: currentId });
+      await api.post('/api/folders', { name });
       setNewFolderOpen(false);
       setNewFolderName('');
       await loadFolders();
@@ -106,26 +103,33 @@ export function Picker(props: PickerProps) {
     }
   };
 
-  const pickHere = () => {
-    if (props.mode !== 'folder') return;
+  const confirmPick = () => {
+    if (props.mode !== 'folder' || !selectedFolder) return;
     if (props.confirmQuestion) setConfirmOpen(true);
-    else props.onPickFolder(currentId, currentName);
+    else props.onPickFolder(selectedFolder.id, selectedFolder.name);
   };
+
+  const browsingVideos = props.mode === 'video' && openFolderId !== null;
 
   return (
     <Dialog open full onClose={props.busy ? undefined : props.onClose}>
       <div className="row" style={{ marginBottom: 10 }}>
-        {currentId !== null ? (
-          <button className="btn btn-ghost" onClick={goUp} aria-label={t('Назад')} style={{ minWidth: 56 }}>
+        {browsingVideos ? (
+          <button
+            className="btn btn-ghost"
+            onClick={() => setOpenFolderId(null)}
+            aria-label={t('Назад')}
+            style={{ minWidth: 56 }}
+          >
             <IconBack size={26} />
           </button>
         ) : null}
         <div className="grow">
           <h2>{props.title}</h2>
           <div className="muted small">
-            {currentId !== null ? (
+            {browsingVideos ? (
               <>
-                {t('Папка:')} <b>{currentName}</b>
+                {t('Папка:')} <b>{openFolderName}</b>
               </>
             ) : (
               t('Выберите папку')
@@ -140,65 +144,79 @@ export function Picker(props: PickerProps) {
       <div className="grow" style={{ overflowY: 'auto', margin: '0 -6px', padding: '0 6px' }}>
         {loading ? (
           <p className="muted center">{t('Загрузка…')}</p>
+        ) : browsingVideos ? (
+          <div className="list-wrap" style={{ boxShadow: 'none', border: `1px solid var(--line)` }}>
+            {videos.map((file) => (
+              <button key={file.id} className="list-row" onClick={() => (props as VideoModeProps).onPickFile(file)}>
+                {file.hasThumb ? (
+                  <img
+                    src={`/api/thumb/${file.id}`}
+                    alt=""
+                    style={{ width: 64, height: 44, objectFit: 'cover', borderRadius: 8, flex: '0 0 auto' }}
+                  />
+                ) : (
+                  <span style={{ width: 64, display: 'flex', justifyContent: 'center' }}>
+                    <IconCamera size={26} />
+                  </span>
+                )}
+                <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {file.name}
+                </span>
+                <span className="muted small num">{fmtDuration(file.durationMs)}</span>
+              </button>
+            ))}
+            {videos.length === 0 ? (
+              <div style={{ padding: 20 }} className="muted center">
+                {t('Здесь нет видео.')}
+              </div>
+            ) : null}
+          </div>
         ) : (
           <div className="list-wrap" style={{ boxShadow: 'none', border: `1px solid var(--line)` }}>
-            {children.map((folder) => (
-              <button key={folder.id} className="list-row" onClick={() => setCurrentId(folder.id)}>
+            {folders.map((folder) => (
+              <button
+                key={folder.id}
+                className="list-row"
+                style={props.mode === 'folder' && selectedId === folder.id ? { background: 'var(--accent-soft)' } : undefined}
+                onClick={() => (props.mode === 'video' ? setOpenFolderId(folder.id) : setSelectedId(folder.id))}
+              >
                 <IconFolder size={26} />
                 <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {folder.name}
                 </span>
                 <span className="side-count num">{folder.fileCount || ''}</span>
-                <IconChevron size={22} />
+                {props.mode === 'video' ? (
+                  <IconChevron size={22} />
+                ) : selectedId === folder.id ? (
+                  <IconCheck size={22} />
+                ) : null}
               </button>
             ))}
-            {props.mode === 'video'
-              ? videos.map((file) => (
-                  <button key={file.id} className="list-row" onClick={() => props.onPickFile(file)}>
-                    {file.hasThumb ? (
-                      <img
-                        src={`/api/thumb/${file.id}`}
-                        alt=""
-                        style={{ width: 64, height: 44, objectFit: 'cover', borderRadius: 8, flex: '0 0 auto' }}
-                      />
-                    ) : (
-                      <span style={{ width: 64, display: 'flex', justifyContent: 'center' }}>
-                        <IconCamera size={26} />
-                      </span>
-                    )}
-                    <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {file.name}
-                    </span>
-                    <span className="muted small num">{fmtDuration(file.durationMs)}</span>
-                  </button>
-                ))
-              : null}
-            {children.length === 0 && (props.mode !== 'video' || videos.length === 0) ? (
+            {folders.length === 0 ? (
               <div style={{ padding: 20 }} className="muted center">
-                {props.mode === 'video' ? t('Здесь нет видео.') : t('Здесь нет вложенных папок.')}
+                {t('Папок пока нет.')}
               </div>
             ) : null}
           </div>
         )}
       </div>
 
-      {props.mode === 'folder' ? (
-        <div className="stack" style={{ marginTop: 14 }}>
-          <button className="btn btn-ghost" onClick={() => setNewFolderOpen(true)} disabled={props.busy}>
-            <IconPlus size={22} /> {t('Новая папка')}
-          </button>
-          {/* Files always live in a folder — picking the top level isn't a valid destination. */}
-          {currentId !== null ? (
-            <button className="btn btn-primary btn-big btn-block" onClick={pickHere} disabled={props.busy}>
-              {props.busy ? t('Подождите…') : props.confirmLabel(currentName)}
+      <div className="stack" style={{ marginTop: 14 }}>
+        <button className="btn btn-ghost" onClick={() => setNewFolderOpen(true)} disabled={props.busy}>
+          <IconPlus size={22} /> {t('Новая папка')}
+        </button>
+        {props.mode === 'folder' ? (
+          selectedFolder ? (
+            <button className="btn btn-primary btn-big btn-block" onClick={confirmPick} disabled={props.busy}>
+              {props.busy ? t('Подождите…') : props.confirmLabel(selectedFolder.name)}
             </button>
           ) : (
             <p className="muted center" style={{ margin: '4px 2px 0' }}>
-              {t('Откройте папку или создайте новую.')}
+              {t('Выберите папку из списка.')}
             </p>
-          )}
-        </div>
-      ) : null}
+          )
+        ) : null}
+      </div>
 
       <Dialog open={newFolderOpen} title={t('Новая папка')} onClose={() => setNewFolderOpen(false)}>
         <input
@@ -221,10 +239,10 @@ export function Picker(props: PickerProps) {
       {props.mode === 'folder' && props.confirmQuestion ? (
         <ConfirmDialog
           open={confirmOpen}
-          title={props.confirmQuestion(currentName)}
-          confirmLabel={props.confirmLabel(currentName)}
+          title={selectedFolder ? props.confirmQuestion(selectedFolder.name) : ''}
+          confirmLabel={selectedFolder ? props.confirmLabel(selectedFolder.name) : ''}
           busy={props.busy}
-          onConfirm={() => props.onPickFolder(currentId, currentName)}
+          onConfirm={() => selectedFolder && props.onPickFolder(selectedFolder.id, selectedFolder.name)}
           onCancel={() => setConfirmOpen(false)}
         />
       ) : null}

@@ -79,18 +79,16 @@ remindersRouter.delete('/reminders/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-/** First «OK» anywhere stops it everywhere. */
+/** First «OK» anywhere stops it everywhere and the reminder is done — it's deleted, not left behind marked done. */
 remindersRouter.post('/reminders/:id/dismiss', (req, res) => {
   const row = db.prepare('SELECT * FROM reminders WHERE id = ?').get(req.params.id) as ReminderRow | undefined;
   if (!row) {
     res.status(404).json({ message: 'Напоминание не найдено.' });
     return;
   }
-  if (row.status !== 'done') {
-    db.prepare("UPDATE reminders SET status = 'done', dismissed_at = ? WHERE id = ?").run(now(), row.id);
-    stopEverywhere(row, 'dismiss');
-    broadcast('reminders-changed', { id: row.id });
-  }
+  stopEverywhere(row, 'dismiss');
+  db.prepare('DELETE FROM reminders WHERE id = ?').run(row.id);
+  broadcast('reminders-changed', { id: row.id });
   res.json({ ok: true });
 });
 

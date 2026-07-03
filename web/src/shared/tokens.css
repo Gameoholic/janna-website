@@ -227,6 +227,28 @@ h2 { font-size: 21px; }
 @media (prefers-reduced-motion: reduce) {
   .swap-enter { animation: none; }
   .btn { transition: none; }
+  .scroll-hint { animation: none; }
+}
+
+/* ---------- Modal "scroll for more" hint (unobtrusive, only while it's true) ---------- */
+
+.scroll-hint-wrap { position: relative; }
+.scroll-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 42px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+  pointer-events: none;
+  color: var(--muted);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--card) 78%);
+  animation: scrollHintBob 1.5s ease-in-out infinite;
+}
+@keyframes scrollHintBob {
+  0%, 100% { transform: translateY(0); opacity: 0.8; }
+  50% { transform: translateY(5px); opacity: 1; }
 }
 
 /* ---------- Alarm takeover (P9) ---------- */
@@ -427,29 +449,82 @@ h2 { font-size: 21px; }
 
 .seek-track {
   position: relative;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.12);
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.28);
   touch-action: none;
   user-select: none;
-  overflow: hidden;
 }
 .seek-fill {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: var(--accent);
 }
-.seek-playhead {
+.seek-thumb {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  margin-left: -2px;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  margin-top: -10px;
+  border-radius: 50%;
   background: #fff;
-  border-radius: 2px;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* ---------- Overlaid video controls (YouTube/WhatsApp-style, always visible) ---------- */
+
+.video-center-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(20, 20, 20, 0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.video-overlay-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px 10px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+}
+.video-overlay-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.video-overlay-btn:active { background: rgba(255, 255, 255, 0.3); }
+.video-overlay-time {
+  flex: 0 0 auto;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* ---------- Sidebar layout (Файлы desktop: the WhatsApp model, P4) ---------- */
