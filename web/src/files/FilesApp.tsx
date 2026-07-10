@@ -26,7 +26,7 @@ import {
   IconUpload,
   IconX,
 } from '../shared/icons';
-import { fmtDuration, fmtSize } from '../shared/russian';
+import { displayName, fmtDuration, fmtSize } from '../shared/russian';
 import { t } from '../shared/i18n';
 import { RenameDialog, ShareDialog, Viewer } from './Viewer';
 
@@ -357,7 +357,7 @@ export function FilesApp() {
           <IconMore size={22} />
         </button>
       </div>
-      <div className="file-name">{file.name}</div>
+      <div className="file-name">{displayName(file.name)}</div>
       <div className="muted small num">
         {file.durationMs ? `${fmtDuration(file.durationMs)} · ` : ''}
         {fmtSize(file.size)}
@@ -383,7 +383,7 @@ export function FilesApp() {
           )}
           <span className="grow" style={{ overflow: 'hidden' }}>
             <span style={{ display: 'block', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {file.name}
+              {displayName(file.name)}
             </span>
             <span className="muted small">{folderPath.length ? folderPath[folderPath.length - 1].name : t('Файлы')}</span>
           </span>
@@ -698,6 +698,7 @@ export function FilesApp() {
             busy={busy}
             confirmLabel={(name) => t('Переместить в «{name}»', { name })}
             confirmQuestion={(name) => t('Переместить файл в «{name}»?', { name })}
+            allowCreateFolder={false}
             onClose={() => setMoveFileTarget(null)}
             onPickFolder={(folderId) => void doMoveFile(folderId)}
           />
@@ -706,7 +707,7 @@ export function FilesApp() {
         <ConfirmDialog
           open={!!deleteFileTarget}
           title={t('Удалить файл?')}
-          body={deleteFileTarget ? <span>{t('«{name}» будет удалён.', { name: deleteFileTarget.name })}</span> : null}
+          body={deleteFileTarget ? <span>{t('«{name}» будет удалён.', { name: displayName(deleteFileTarget.name) })}</span> : null}
           confirmLabel={t('Удалить')}
           danger
           busy={busy}

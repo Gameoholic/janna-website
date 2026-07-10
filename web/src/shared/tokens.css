@@ -155,6 +155,10 @@ h2 { font-size: 21px; }
 }
 .dialog {
   background: var(--card);
+  /* Dialogs can be opened from dark-themed screens (e.g. the file viewer) —
+     without this they'd inherit that ambient light text color and become
+     unreadable on the dialog's own white card. */
+  color: var(--text);
   border-radius: 20px;
   padding: 22px;
   width: 100%;
@@ -451,7 +455,7 @@ h2 { font-size: 21px; }
   position: relative;
   height: 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.55);
   touch-action: none;
   user-select: none;
 }
@@ -483,8 +487,8 @@ h2 { font-size: 21px; }
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 74px;
-  height: 74px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.85);
   background: rgba(20, 20, 20, 0.45);
@@ -501,14 +505,14 @@ h2 { font-size: 21px; }
   bottom: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 12px 10px;
+  gap: 8px;
+  padding: 10px 10px 8px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
 }
 .video-overlay-btn {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.16);

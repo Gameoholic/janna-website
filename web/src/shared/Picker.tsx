@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, FileInfo, FolderInfo } from './api';
 import { ConfirmDialog, Dialog, showToast } from './ui';
 import { IconBack, IconCamera, IconCheck, IconChevron, IconFolder, IconPlus } from './icons';
-import { fmtDuration } from './russian';
+import { displayName, fmtDuration } from './russian';
 import { t } from './i18n';
 
 /**
@@ -25,6 +25,8 @@ interface FolderModeProps extends BaseProps {
   confirmLabel: (folderName: string) => string;
   /** When set, an extra confirmation dialog appears (used for «Переместить»). */
   confirmQuestion?: (folderName: string) => string;
+  /** Move dialogs pick an existing destination only — no «Новая папка» there. */
+  allowCreateFolder?: boolean;
   onPickFolder: (folderId: string | null, folderName: string) => void;
 }
 
@@ -110,6 +112,7 @@ export function Picker(props: PickerProps) {
   };
 
   const browsingVideos = props.mode === 'video' && openFolderId !== null;
+  const showCreateFolder = props.mode !== 'folder' || props.allowCreateFolder !== false;
 
   return (
     <Dialog open full onClose={props.busy ? undefined : props.onClose}>
@@ -160,7 +163,7 @@ export function Picker(props: PickerProps) {
                   </span>
                 )}
                 <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {file.name}
+                  {displayName(file.name)}
                 </span>
                 <span className="muted small num">{fmtDuration(file.durationMs)}</span>
               </button>
@@ -202,9 +205,11 @@ export function Picker(props: PickerProps) {
       </div>
 
       <div className="stack" style={{ marginTop: 14 }}>
-        <button className="btn btn-ghost" onClick={() => setNewFolderOpen(true)} disabled={props.busy}>
-          <IconPlus size={22} /> {t('Новая папка')}
-        </button>
+        {showCreateFolder ? (
+          <button className="btn btn-ghost" onClick={() => setNewFolderOpen(true)} disabled={props.busy}>
+            <IconPlus size={22} /> {t('Новая папка')}
+          </button>
+        ) : null}
         {props.mode === 'folder' ? (
           selectedFolder ? (
             <button className="btn btn-primary btn-big btn-block" onClick={confirmPick} disabled={props.busy}>

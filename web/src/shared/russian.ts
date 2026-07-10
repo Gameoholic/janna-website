@@ -49,6 +49,13 @@ export function fmtDuration(ms: number | null | undefined): string {
   return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
 }
 
+/** She never needs to see or type a file extension — hide it everywhere a
+ * filename is shown, and strip it before showing a name for editing (the
+ * extension is re-attached automatically on save, see server `extOf`). */
+export function displayName(name: string): string {
+  return name.replace(/\.[A-Za-z0-9]{1,8}$/, '');
+}
+
 export function fmtSize(bytes: number): string {
   const en = getLang() === 'en';
   if (bytes < 1024) return `${bytes} ${en ? 'B' : 'Б'}`;

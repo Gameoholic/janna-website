@@ -91,6 +91,10 @@ export const IconUpload = ({ size }: IconProps) =>
   svg(<path d="M12 16V5m-5 5l5-5 5 5M5 20h14" />, size);
 export const IconHome = ({ size }: IconProps) =>
   svg(<path d="M4 11.5L12 4l8 7.5M6 10v9a1 1 0 001 1h3v-6h4v6h3a1 1 0 001-1v-9" />, size);
+export const IconExpand = ({ size }: IconProps) =>
+  svg(<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />, size);
+export const IconCompress = ({ size }: IconProps) =>
+  svg(<path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5" />, size);
 export const IconMore = ({ size }: IconProps) =>
   svg(
     <g fill="currentColor" stroke="none">

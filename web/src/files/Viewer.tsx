@@ -8,12 +8,11 @@ import {
   IconCheck,
   IconDownload,
   IconMove,
-  IconNote,
   IconPencil,
   IconShare,
   IconTrash,
 } from '../shared/icons';
-import { fmtDate, fmtDuration, fmtSize } from '../shared/russian';
+import { displayName, fmtDate, fmtDuration, fmtSize } from '../shared/russian';
 import { t } from '../shared/i18n';
 
 /**
@@ -88,7 +87,7 @@ export function Viewer(props: {
         flexDirection: 'column',
       }}
     >
-      <div className="row" style={{ padding: '10px 12px', gap: 10 }}>
+      <div className="row" style={{ padding: '8px 12px', gap: 10 }}>
         <button
           className="btn btn-compact"
           style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', boxShadow: 'none', minWidth: 56 }}
@@ -99,7 +98,7 @@ export function Viewer(props: {
         </button>
         <div className="grow" style={{ overflow: 'hidden' }}>
           <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {file.name}
+            {displayName(file.name)}
           </div>
           <div className="small num" style={{ color: '#9CA3AF' }}>
             {details.join(' · ')}
@@ -117,21 +116,16 @@ export function Viewer(props: {
           padding: '0 8px',
         }}
       >
-        {file.kind === 'video' ? (
-          <div style={{ width: '100%', maxWidth: 640 }}>
-            <VideoPlayer
-              src={mediaUrl}
-              poster={file.hasThumb ? `/api/thumb/${file.id}` : undefined}
-              style={{ width: '100%', maxHeight: '60vh', background: '#000', borderRadius: 10, display: 'block' }}
-            />
-          </div>
+        {file.kind === 'video' || file.kind === 'audio' ? (
+          <VideoPlayer
+            fill
+            kind={file.kind}
+            src={mediaUrl}
+            poster={file.kind === 'video' && file.hasThumb ? `/api/thumb/${file.id}` : undefined}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', borderRadius: 10 }}
+          />
         ) : file.kind === 'image' ? (
           <img src={mediaUrl} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10 }} />
-        ) : file.kind === 'audio' ? (
-          <div style={{ width: '100%', maxWidth: 480, textAlign: 'center' }}>
-            <IconNote size={84} />
-            <audio src={mediaUrl} controls preload="metadata" style={{ width: '100%', marginTop: 18 }} />
-          </div>
         ) : (
           <div className="center">
             <p>{t('Этот файл нельзя показать здесь.')}</p>
@@ -151,22 +145,22 @@ export function Viewer(props: {
         </div>
       ) : null}
 
-      <div style={{ padding: 14 }} className="stack">
-        <button className="btn btn-primary btn-big btn-block" onClick={() => setShareOpen(true)}>
-          <IconShare size={24} /> {t('Поделиться')}
+      <div style={{ padding: '8px 10px 10px' }} className="stack" >
+        <button className="btn btn-primary btn-block" onClick={() => setShareOpen(true)}>
+          <IconShare size={20} /> {t('Поделиться')}
         </button>
-        <div className="row-wrap">
-          <a className="btn grow" style={darkBtn} href={`/api/download/${file.id}`}>
-            <IconDownload size={22} /> {t('Скачать')}
+        <div className="row-wrap" style={{ gap: 8 }}>
+          <a className="btn btn-compact grow" style={darkBtn} href={`/api/download/${file.id}`}>
+            <IconDownload size={18} /> {t('Скачать')}
           </a>
-          <button className="btn grow" style={darkBtn} onClick={() => setMoveOpen(true)}>
-            <IconMove size={22} /> {t('Переместить')}
+          <button className="btn btn-compact grow" style={darkBtn} onClick={() => setMoveOpen(true)}>
+            <IconMove size={18} /> {t('Переместить')}
           </button>
-          <button className="btn grow" style={darkBtn} onClick={() => setRenameOpen(true)}>
-            <IconPencil size={22} /> {t('Переименовать')}
+          <button className="btn btn-compact grow" style={darkBtn} onClick={() => setRenameOpen(true)}>
+            <IconPencil size={18} /> {t('Переименовать')}
           </button>
-          <button className="btn grow" style={{ ...darkBtn, color: '#FCA5A5' }} onClick={() => setDeleteOpen(true)}>
-            <IconTrash size={22} /> {t('Удалить')}
+          <button className="btn btn-compact grow" style={{ ...darkBtn, color: '#FCA5A5' }} onClick={() => setDeleteOpen(true)}>
+            <IconTrash size={18} /> {t('Удалить')}
           </button>
         </div>
       </div>
@@ -190,6 +184,7 @@ export function Viewer(props: {
         busy={busy}
         confirmLabel={(name) => t('Переместить в «{name}»', { name })}
         confirmQuestion={(name) => t('Переместить файл в «{name}»?', { name })}
+        allowCreateFolder={false}
         onClose={() => setMoveOpen(false)}
         onPickFolder={(folderId, folderName) => void doMove(folderId, folderName)}
       />
@@ -197,7 +192,7 @@ export function Viewer(props: {
       <ConfirmDialog
         open={deleteOpen}
         title={t('Удалить файл?')}
-        body={<span>{t('«{name}» будет удалён.', { name: file.name })}</span>}
+        body={<span>{t('«{name}» будет удалён.', { name: displayName(file.name) })}</span>}
         confirmLabel={t('Удалить')}
         danger
         busy={busy}
@@ -224,11 +219,11 @@ export function RenameDialog(props: {
   onClose: () => void;
   onRenamed: (updated: FileInfo) => void;
 }) {
-  const [name, setName] = useState(props.file.name);
+  const [name, setName] = useState(() => displayName(props.file.name));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (props.open) setName(props.file.name);
+    if (props.open) setName(displayName(props.file.name));
   }, [props.open, props.file.name]);
 
   const save = async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   api,
   EditJobInfo,
@@ -6,7 +6,7 @@ import {
   FileInfo,
   uploadWithProgress,
 } from '../shared/api';
-import { ConfirmDialog, ProgressBar, showToast, TopBar } from '../shared/ui';
+import { ConfirmDialog, Dialog, ProgressBar, showToast, TopBar } from '../shared/ui';
 import { Picker } from '../shared/Picker';
 import { VideoPlayer } from '../shared/VideoPlayer';
 import {
@@ -18,23 +18,24 @@ import {
   IconPlay,
   IconScissors,
   IconSpeed,
-  IconX,
 } from '../shared/icons';
-import { fmtDuration } from '../shared/russian';
+import { displayName, fmtDuration } from '../shared/russian';
 import { t } from '../shared/i18n';
 import { Seg, Timeline } from './Timeline';
 
 type Stage =
   | { t: 'pick' }
   | { t: 'uploading'; progress: number }
-  | { t: 'edit'; session: EditSessionInfo }
-  | { t: 'confirm'; session: EditSessionInfo }
+  | { t: 'edit'; session: EditSessionInfo; startAtSummary?: boolean }
   | { t: 'processing'; session: EditSessionInfo; job: EditJobInfo }
   | { t: 'result'; session: EditSessionInfo; job: EditJobInfo };
 
-type Mode = 'base' | 'cut' | 'speed';
-
-const SPEEDS = [0.6, 0.7, 0.8, 0.9] as const;
+const SPEEDS: { value: number; label: string }[] = [
+  { value: 0.9, label: 'чуть медленнее' },
+  { value: 0.8, label: 'медленнее' },
+  { value: 0.7, label: 'ещё медленнее' },
+  { value: 0.6, label: 'самое медленное' },
+];
 
 export function VideoApp() {
   const [stage, setStage] = useState<Stage>({ t: 'pick' });
@@ -65,24 +66,14 @@ export function VideoApp() {
   if (stage.t === 'edit') {
     return (
       <EditStage
+        key={stage.session.id}
         session={stage.session}
         segments={segments}
         speed={speed}
+        startAtSummary={stage.startAtSummary === true}
         onSegments={setSegments}
         onSpeed={setSpeed}
         onExit={reset}
-        onContinue={() => setStage({ t: 'confirm', session: stage.session })}
-      />
-    );
-  }
-
-  if (stage.t === 'confirm') {
-    return (
-      <ConfirmStage
-        session={stage.session}
-        segments={segments}
-        speed={speed}
-        onBack={() => setStage({ t: 'edit', session: stage.session })}
         onStarted={(job) => setStage({ t: 'processing', session: stage.session, job })}
       />
     );
@@ -94,7 +85,7 @@ export function VideoApp() {
         session={stage.session}
         job={stage.job}
         onDone={(job) => setStage({ t: 'result', session: stage.session, job })}
-        onBack={() => setStage({ t: 'confirm', session: stage.session })}
+        onBack={() => setStage({ t: 'edit', session: stage.session, startAtSummary: true })}
       />
     );
   }
@@ -199,73 +190,90 @@ function PickStage(props: {
   );
 }
 
-/* ---------------- Edit: player + in-place mode swap ---------------- */
+/* ----------------------------------------------------------------------
+ * Edit: a guided wizard. The video preview is ALWAYS visible on top; below
+ * it ONE question card at a time with 1–3 big buttons (8A, P2, P3). No
+ * modes, no draggable handles, no fine-tuning grids — a wrong step is
+ * always fixed the same one way: «Выбрать заново» / «Начать заново».
+ * -------------------------------------------------------------------- */
+
+type Step =
+  | 'askCut' // что будем делать?
+  | 'markStart' // найдите, где часть начинается
+  | 'markEnd' // досмотрите до конца части
+  | 'review' // вот что вы выбрали (часть играет сама)
+  | 'askMore' // добавить ещё часть?
+  | 'askSpeed' // замедлить?
+  | 'pickSpeed' // насколько? (слышно сразу)
+  | 'summary'; // все числа + итоговый просмотр + «Создать видео»
 
 function EditStage(props: {
   session: EditSessionInfo;
   segments: Seg[];
   speed: number;
+  startAtSummary: boolean;
   onSegments: (segments: Seg[]) => void;
   onSpeed: (speed: number) => void;
   onExit: () => void;
-  onContinue: () => void;
+  onStarted: (job: EditJobInfo) => void;
 }) {
   const { session, segments, speed } = props;
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [mode, setMode] = useState<Mode>('base');
+  const [step, setStep] = useState<Step>(props.startAtSummary ? 'summary' : 'askCut');
   const [playing, setPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [pendingStart, setPendingStart] = useState<number | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [previewing, setPreviewing] = useState(false);
-  const [exitConfirm, setExitConfirm] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  const previewRef = useRef(previewing);
-  previewRef.current = previewing;
-  const segmentsRef = useRef(segments);
-  segmentsRef.current = segments;
+  const [exitConfirm, setExitConfirm] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // Where «Назад» from the speed question returns, and the speed to restore.
+  const speedBackRef = useRef<{ from: Step; speed: number }>({ from: 'askSpeed', speed: 1 });
 
   const durationMs = session.durationMs;
   const hasEdits = segments.length > 0 || speed !== 1;
 
+  // On review / pickSpeed / summary, playback is confined to the kept parts:
+  // she always hears exactly what the result will sound like (8A preview).
+  const reviewSeg = reviewIndex !== null ? segments[reviewIndex] : null;
+  let previewSegs: Seg[] | null = null;
+  if (step === 'review' && reviewSeg) previewSegs = [reviewSeg];
+  else if ((step === 'pickSpeed' || step === 'summary') && segments.length > 0) previewSegs = segments;
+  const previewSegsRef = useRef(previewSegs);
+  previewSegsRef.current = previewSegs;
+
   // Live position + jump-cut preview loop.
   useEffect(() => {
     let raf = 0;
-    const step = () => {
+    const tick = () => {
       const video = videoRef.current;
       if (video) {
         const cur = video.currentTime * 1000;
         setPositionMs(cur);
-        if (previewRef.current && !video.paused && segmentsRef.current.length > 0) {
-          const segs = segmentsRef.current;
-          const inside = segs.some((s) => cur >= s.start - 60 && cur <= s.end + 60);
+        const segs = previewSegsRef.current;
+        if (segs && !video.paused) {
+          const inside = segs.find((s) => cur >= s.start - 60 && cur <= s.end + 60);
           if (!inside) {
             const next = segs.find((s) => s.start > cur - 60);
-            if (next) {
-              video.currentTime = next.start / 1000;
-            } else {
+            if (next) video.currentTime = next.start / 1000;
+            else {
               video.pause();
               video.currentTime = segs[0].start / 1000;
-              setPreviewing(false);
             }
-          } else {
-            const current = segs.find((s) => cur >= s.start - 60 && cur <= s.end + 60)!;
-            if (cur > current.end - 40) {
-              const idx = segs.indexOf(current);
-              const next = segs[idx + 1];
-              if (next) video.currentTime = next.start / 1000;
-              else {
-                video.pause();
-                video.currentTime = segs[0].start / 1000;
-                setPreviewing(false);
-              }
+          } else if (cur > inside.end - 40) {
+            const next = segs[segs.indexOf(inside) + 1];
+            if (next) video.currentTime = next.start / 1000;
+            else {
+              video.pause();
+              video.currentTime = segs[0].start / 1000;
             }
           }
         }
       }
-      raf = requestAnimationFrame(step);
+      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(step);
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
 
@@ -278,6 +286,19 @@ function EditStage(props: {
     v.preservesPitch = true;
     v.webkitPreservesPitch = true;
   }, [speed]);
+
+  // The app shows her what she chose without asking: entering the review or
+  // the summary starts the preview by itself (P2 — the result is right there).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (step === 'review' || step === 'summary') {
+      const segs = previewSegsRef.current;
+      video.currentTime = (segs ? segs[0].start : 0) / 1000;
+      void video.play()?.catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const seek = (ms: number) => {
     const video = videoRef.current;
@@ -293,76 +314,294 @@ function EditStage(props: {
     else video.pause();
   };
 
+  const pause = () => videoRef.current?.pause();
+
   const flashHint = (text: string) => {
     setHint(text);
-    window.setTimeout(() => setHint(null), 3500);
+    window.setTimeout(() => setHint(null), 4000);
   };
+
+  const go = (next: Step) => {
+    setHint(null);
+    setStep(next);
+  };
+
+  /* ---- step actions ---- */
 
   const markStart = () => {
     setPendingStart(positionMs);
-    setSelected(null);
-    flashHint(t('Начало отмечено. Теперь доиграйте до конца нужной части и нажмите «Конец».'));
+    go('markEnd');
   };
 
   const markEnd = () => {
-    if (pendingStart === null) {
-      flashHint(t('Сначала нажмите «Начало».'));
-      return;
-    }
+    if (pendingStart === null) return;
     const start = Math.min(pendingStart, positionMs);
     const end = Math.max(pendingStart, positionMs);
-    if (end - start < 200) {
-      flashHint(t('Часть получилась слишком короткой. Передвиньте видео вперёд и нажмите «Конец».'));
+    if (end - start < 500) {
+      flashHint(t('Получилось слишком коротко. Дайте видео поиграть ещё чуть-чуть и нажмите кнопку.'));
       return;
     }
     const next = [...segments, { start, end }].sort((a, b) => a.start - b.start);
     props.onSegments(next);
+    setReviewIndex(next.findIndex((s) => s.start === start && s.end === end));
     setPendingStart(null);
-    setSelected(next.findIndex((s) => s.start === start && s.end === end));
+    go('review');
   };
 
-  const removeSegment = (index: number) => {
-    const next = segments.filter((_, i) => i !== index);
-    props.onSegments(next);
-    setSelected(null);
+  const keepReviewed = () => {
+    pause();
+    setReviewIndex(null);
+    go('askMore');
   };
 
-  const nudge = (index: number, edge: 'start' | 'end', deltaMs: number) => {
-    const seg = segments[index];
-    if (!seg) return;
-    let { start, end } = seg;
-    if (edge === 'start') start = Math.max(0, Math.min(seg.end - 200, start + deltaMs));
-    else end = Math.min(durationMs, Math.max(seg.start + 200, end + deltaMs));
-    const next = segments.map((s, i) => (i === index ? { start, end } : s));
-    props.onSegments(next);
-    seek(edge === 'start' ? start : end);
+  const redoReviewed = () => {
+    pause();
+    if (reviewIndex !== null) props.onSegments(segments.filter((_, i) => i !== reviewIndex));
+    setReviewIndex(null);
+    go('markStart');
   };
 
-  const startPreview = () => {
+  const enterPickSpeed = (from: Step) => {
+    speedBackRef.current = { from, speed };
+    go('pickSpeed');
+  };
+
+  const chooseSpeed = (value: number) => {
+    props.onSpeed(value);
     const video = videoRef.current;
     if (!video) return;
-    if (segments.length > 0) video.currentTime = segments[0].start / 1000;
-    setPreviewing(segments.length > 0);
-    void video.play();
+    if (video.paused) {
+      if (segments.length > 0) video.currentTime = segments[0].start / 1000;
+      else if (video.currentTime * 1000 > durationMs - 500) video.currentTime = 0;
+      void video.play();
+    }
   };
 
-  const stopPreview = () => {
-    videoRef.current?.pause();
-    setPreviewing(false);
+  const startOver = () => {
+    setResetConfirm(false);
+    pause();
+    props.onSegments([]);
+    props.onSpeed(1);
+    setPendingStart(null);
+    setReviewIndex(null);
+    seek(0);
+    go('askCut');
+  };
+
+  const createVideo = async () => {
+    setBusy(true);
+    pause();
+    try {
+      const { job } = await api.post<{ job: EditJobInfo }>('/api/edit/jobs', {
+        sessionId: session.id,
+        segments: segments.map((s) => ({ startMs: Math.round(s.start), endMs: Math.round(s.end) })),
+        speed,
+      });
+      props.onStarted(job);
+    } catch (e) {
+      showToast(e instanceof Error ? t(e.message) : t('Не получилось начать. Попробуйте ещё раз.'));
+      setBusy(false);
+    }
   };
 
   const keptMs = segments.reduce((sum, s) => sum + (s.end - s.start), 0);
   const totalMs = segments.length > 0 ? keptMs : durationMs;
   const resultMs = Math.round(totalMs / speed);
 
-  const sortedForDisplay = useMemo(() => segments.map((s, i) => ({ ...s, i })), [segments]);
+  /* ---- the ONE question card for the current step ---- */
+
+  const question = (text: string) => (
+    <p style={{ margin: '2px 2px 4px', fontSize: 20 }}>{text}</p>
+  );
+
+  let card: JSX.Element;
+  if (step === 'askCut') {
+    card = (
+      <>
+        {question(t('Что будем делать с видео?'))}
+        <button className="btn btn-primary btn-big btn-block" onClick={() => go('markStart')}>
+          <IconScissors size={26} /> {t('Оставить только нужную часть')}
+        </button>
+        <button className="btn btn-soft btn-big btn-block" onClick={() => enterPickSpeed('askCut')}>
+          <IconSpeed size={26} /> {t('Просто замедлить видео')}
+        </button>
+      </>
+    );
+  } else if (step === 'markStart') {
+    card = (
+      <>
+        {question(
+          segments.length === 0
+            ? t('Включите видео. Когда начнётся нужная часть — нажмите кнопку.')
+            : t('Найдите следующую часть. Когда она начнётся — нажмите кнопку.'),
+        )}
+        <button className="btn btn-primary btn-big btn-block" onClick={markStart}>
+          <IconScissors size={26} /> {t('Часть начинается здесь')}
+        </button>
+        <button
+          className="btn btn-ghost btn-block"
+          onClick={() => go(segments.length === 0 ? 'askCut' : 'askMore')}
+        >
+          {t('Назад')}
+        </button>
+      </>
+    );
+  } else if (step === 'markEnd') {
+    card = (
+      <>
+        {question(
+          t('Начало отмечено: {t}. Досмотрите до конца части и нажмите кнопку.', {
+            t: fmtDuration(pendingStart ?? 0),
+          }),
+        )}
+        <button className="btn btn-primary btn-big btn-block" onClick={markEnd}>
+          <IconScissors size={26} /> {t('Часть заканчивается здесь')}
+        </button>
+        <button
+          className="btn btn-ghost btn-block"
+          onClick={() => {
+            setPendingStart(null);
+            go('markStart');
+          }}
+        >
+          {t('Отменить начало')}
+        </button>
+      </>
+    );
+  } else if (step === 'review') {
+    card = (
+      <>
+        {question(t('Посмотрите, что вы выбрали:'))}
+        {reviewSeg ? (
+          <div className="num" style={{ margin: '0 2px', fontSize: 20 }}>
+            <b>
+              {fmtDuration(reviewSeg.start)} – {fmtDuration(reviewSeg.end)}
+            </b>{' '}
+            <span className="muted">({fmtDuration(reviewSeg.end - reviewSeg.start)})</span>
+          </div>
+        ) : null}
+        <button className="btn btn-primary btn-big btn-block" onClick={keepReviewed}>
+          <IconCheck size={26} /> {t('Да, оставить эту часть')}
+        </button>
+        <button className="btn btn-ghost btn-block" onClick={redoReviewed}>
+          {t('Выбрать заново')}
+        </button>
+      </>
+    );
+  } else if (step === 'askMore') {
+    card = (
+      <>
+        {question(t('Часть сохранена. Добавить ещё одну?'))}
+        <div className="muted" style={{ margin: '0 2px' }}>
+          {t('Выбрано частей: {n}, вместе: {d}', { n: segments.length, d: fmtDuration(keptMs) })}
+        </div>
+        <button className="btn btn-soft btn-big btn-block" onClick={() => go('markStart')}>
+          <IconScissors size={26} /> {t('Да, добавить ещё часть')}
+        </button>
+        <button className="btn btn-primary btn-big btn-block" onClick={() => go('askSpeed')}>
+          {t('Нет, дальше')}
+        </button>
+      </>
+    );
+  } else if (step === 'askSpeed') {
+    card = (
+      <>
+        {question(t('Замедлить видео?'))}
+        <button className="btn btn-primary btn-big btn-block" onClick={() => enterPickSpeed('askSpeed')}>
+          <IconSpeed size={26} /> {t('Да, замедлить')}
+        </button>
+        <button className="btn btn-soft btn-big btn-block" onClick={() => go('summary')}>
+          {t('Нет, оставить как есть')}
+        </button>
+      </>
+    );
+  } else if (step === 'pickSpeed') {
+    card = (
+      <>
+        {question(t('Насколько замедлить? Нажмите на кнопку — видео сразу покажет.'))}
+        <div className="row-wrap">
+          {SPEEDS.map((s) => (
+            <button
+              key={s.value}
+              className={`btn btn-big ${speed === s.value ? 'btn-primary' : 'btn-soft'}`}
+              style={{ flex: '1 1 40%', flexDirection: 'column', gap: 2, padding: '10px 8px' }}
+              onClick={() => chooseSpeed(s.value)}
+            >
+              <span className="num" style={{ fontSize: 24 }}>
+                {s.value.toFixed(1)} {speed === s.value ? <IconCheck size={20} /> : null}
+              </span>
+              <span className="small" style={{ fontWeight: 400 }}>{t(s.label)}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          className="btn btn-primary btn-big btn-block"
+          disabled={speed === 1}
+          onClick={() => {
+            pause();
+            go('summary');
+          }}
+        >
+          {t('Готово')}
+        </button>
+        <button
+          className="btn btn-ghost btn-block"
+          onClick={() => {
+            props.onSpeed(speedBackRef.current.speed);
+            pause();
+            go(speedBackRef.current.from);
+          }}
+        >
+          {t('Назад')}
+        </button>
+      </>
+    );
+  } else {
+    card = (
+      <>
+        {question(t('Всё готово. Видео сверху показывает, что получится.'))}
+        <div className="stack" style={{ gap: 6, margin: '0 2px' }}>
+          {segments.length > 0 ? (
+            segments.map((seg, i) => (
+              <div key={i}>
+                {t('Часть {i}:', { i: i + 1 })}{' '}
+                <b className="num">
+                  {fmtDuration(seg.start)} – {fmtDuration(seg.end)}
+                </b>{' '}
+                <span className="muted num">({fmtDuration(seg.end - seg.start)})</span>
+              </div>
+            ))
+          ) : (
+            <div>{t('Видео целиком')}</div>
+          )}
+          {speed !== 1 ? (
+            <div>
+              {t('Скорость:')} <b className="num">{t('{s} — медленнее', { s: speed.toFixed(1) })}</b>
+            </div>
+          ) : null}
+          <div style={{ fontSize: 21 }}>
+            {t('Новое видео получится: {d}', { d: fmtDuration(resultMs) })}
+          </div>
+        </div>
+        <button className="btn btn-primary btn-big btn-block" onClick={() => void createVideo()} disabled={busy}>
+          {busy ? t('Начинаем…') : t('Создать видео')}
+        </button>
+        <button className="btn btn-ghost btn-block" onClick={() => enterPickSpeed('summary')} disabled={busy}>
+          <IconSpeed size={22} /> {t('Изменить скорость')}
+        </button>
+        <button className="btn btn-ghost btn-block" onClick={() => setResetConfirm(true)} disabled={busy}>
+          {t('Начать заново')}
+        </button>
+      </>
+    );
+  }
 
   return (
     <div className="page" style={{ maxWidth: 720 }}>
       <TopBar
-        title={session.name}
+        title={displayName(session.name)}
         onBack={() => {
-          if (hasEdits) setExitConfirm(true);
+          if (hasEdits || step !== 'askCut') setExitConfirm(true);
           else props.onExit();
         }}
       />
@@ -377,7 +616,7 @@ function EditStage(props: {
           onPause={() => setPlaying(false)}
           onContextMenu={(e) => e.preventDefault()}
           onClick={togglePlay}
-          style={{ width: '100%', maxHeight: '44vh', background: '#000', display: 'block', cursor: 'pointer' }}
+          style={{ width: '100%', maxHeight: '40vh', background: '#000', display: 'block', cursor: 'pointer' }}
         />
         {!playing ? (
           <button className="video-center-play" onClick={togglePlay} aria-label={t('Смотреть')}>
@@ -393,7 +632,7 @@ function EditStage(props: {
         <div className="num" style={{ fontSize: 22, fontWeight: 700 }}>
           {fmtDuration(positionMs)} <span className="muted" style={{ fontWeight: 400 }}>{t('из {d}', { d: fmtDuration(durationMs) })}</span>
         </div>
-        {speed !== 1 ? <span className="badge num">{t('скорость {s}×', { s: speed.toFixed(1) })}</span> : null}
+        {speed !== 1 ? <span className="badge num">{t('медленнее: {s}', { s: speed.toFixed(1) })}</span> : null}
       </div>
 
       <Timeline
@@ -401,182 +640,19 @@ function EditStage(props: {
         positionMs={positionMs}
         segments={segments}
         pendingStart={pendingStart}
-        selected={mode === 'cut' ? selected : null}
-        editable={mode === 'cut'}
         onSeek={seek}
-        onSelect={setSelected}
-        onChangeSegment={(i, seg) => props.onSegments(segments.map((s, idx) => (idx === i ? seg : s)))}
       />
 
       {hint ? (
-        <div className="card" style={{ marginTop: 12, background: '#FFF7DE', boxShadow: 'none' }}>
+        <div className="card swap-enter" style={{ marginTop: 12, background: '#FFF7DE', boxShadow: 'none' }}>
           {hint}
         </div>
       ) : null}
 
-      {/* Mode area — swapped in place, never a separate page (8A). */}
-      {mode === 'base' ? (
-        <div className="stack swap-enter" style={{ marginTop: 16 }} key="base">
-          <button className="btn btn-soft btn-big btn-block" onClick={() => { setMode('cut'); stopPreview(); }}>
-            <IconScissors size={26} /> {t('Обрезать видео')}
-          </button>
-          <button className="btn btn-soft btn-big btn-block" onClick={() => { setMode('speed'); stopPreview(); }}>
-            <IconSpeed size={26} /> {t('Изменить скорость')}
-          </button>
-
-          {hasEdits ? (
-            <div className="card stack" style={{ gap: 8 }}>
-              {segments.length > 0 ? (
-                <div>
-                  {t('Оставлено частей:')} <b className="num">{segments.length}</b> — {t('вместе')}{' '}
-                  <b className="num">{fmtDuration(keptMs)}</b>
-                </div>
-              ) : (
-                <div>{t('Видео целиком:')} <b className="num">{fmtDuration(durationMs)}</b></div>
-              )}
-              {speed !== 1 ? (
-                <div>
-                  {t('Скорость:')} <b className="num">{speed.toFixed(1)}×</b> {t('(медленнее)')}
-                </div>
-              ) : null}
-              <div>
-                {t('Итоговая длина:')} <b className="num">{fmtDuration(resultMs)}</b>
-              </div>
-              <button
-                className="btn btn-ghost"
-                onClick={previewing ? stopPreview : startPreview}
-              >
-                {previewing ? t('Остановить просмотр') : t('Посмотреть, что получится')}
-              </button>
-            </div>
-          ) : (
-            <p className="muted" style={{ margin: '2px 4px' }}>
-              {t('Выберите, что сделать с видео. Можно и обрезать, и замедлить.')}
-            </p>
-          )}
-
-          <button className="btn btn-primary btn-big btn-block" disabled={!hasEdits} onClick={props.onContinue}>
-            {t('Продолжить')}
-          </button>
-        </div>
-      ) : null}
-
-      {mode === 'cut' ? (
-        <div className="stack swap-enter" style={{ marginTop: 16 }} key="cut">
-          <p style={{ margin: '2px 4px', fontSize: 18 }}>
-            {pendingStart === null
-              ? t('Найдите нужную часть. Нажмите «Начало» там, где она начинается.')
-              : t('Начало: {t}. Теперь нажмите «Конец» там, где часть заканчивается.', { t: fmtDuration(pendingStart) })}
-          </p>
-          <div className="row">
-            <button className="btn btn-primary btn-big grow" onClick={markStart}>
-              {t('Начало')}
-            </button>
-            <button className="btn btn-primary btn-big grow" onClick={markEnd} disabled={pendingStart === null}>
-              {t('Конец')}
-            </button>
-          </div>
-          {pendingStart !== null ? (
-            <button className="btn btn-ghost" onClick={() => setPendingStart(null)}>
-              {t('Отменить отметку')}
-            </button>
-          ) : null}
-
-          {sortedForDisplay.length > 0 ? (
-            <div className="list-wrap">
-              {sortedForDisplay.map((seg, i) => (
-                <div
-                  key={seg.i}
-                  className="list-row"
-                  style={selected === seg.i ? { background: 'var(--accent-soft)' } : undefined}
-                  onClick={() => setSelected(selected === seg.i ? null : seg.i)}
-                  role="button"
-                >
-                  <div className="grow">
-                    <b>{t('Часть {i}:', { i: i + 1 })}</b>{' '}
-                    <span className="num">
-                      {fmtDuration(seg.start)} – {fmtDuration(seg.end)}
-                    </span>{' '}
-                    <span className="muted num">({fmtDuration(seg.end - seg.start)})</span>
-                  </div>
-                  <button
-                    className="btn btn-ghost btn-compact"
-                    aria-label={t('Убрать часть {i}', { i: i + 1 })}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeSegment(seg.i);
-                    }}
-                  >
-                    <IconX size={22} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {selected !== null && segments[selected] ? (
-            <div className="card stack" style={{ gap: 10 }}>
-              <div className="row">
-                <span className="grow">
-                  {t('Начало:')} <b className="num">{fmtDuration(segments[selected].start)}</b>
-                </span>
-                <button className="btn btn-ghost btn-compact num" onClick={() => nudge(selected, 'start', -1000)}>{t('−1 сек')}</button>
-                <button className="btn btn-ghost btn-compact num" onClick={() => nudge(selected, 'start', 1000)}>{t('+1 сек')}</button>
-              </div>
-              <div className="row">
-                <span className="grow">
-                  {t('Конец:')} <b className="num">{fmtDuration(segments[selected].end)}</b>
-                </span>
-                <button className="btn btn-ghost btn-compact num" onClick={() => nudge(selected, 'end', -1000)}>{t('−1 сек')}</button>
-                <button className="btn btn-ghost btn-compact num" onClick={() => nudge(selected, 'end', 1000)}>{t('+1 сек')}</button>
-              </div>
-            </div>
-          ) : null}
-
-          {segments.length > 0 ? (
-            <button className="btn btn-ghost" onClick={previewing ? stopPreview : startPreview}>
-              {previewing ? t('Остановить просмотр') : t('Посмотреть, что получится')}
-            </button>
-          ) : null}
-
-          <button className="btn btn-primary btn-big btn-block" onClick={() => { setMode('base'); setPendingStart(null); }}>
-            {t('Готово')}
-          </button>
-        </div>
-      ) : null}
-
-      {mode === 'speed' ? (
-        <div className="stack swap-enter" style={{ marginTop: 16 }} key="speed">
-          <p style={{ margin: '2px 4px', fontSize: 18 }}>
-            {t('Выберите скорость. Звук останется обычным, не «писклявым».')}
-          </p>
-          <div className="row-wrap">
-            {SPEEDS.map((value) => (
-              <button
-                key={value}
-                className={`btn btn-big num ${speed === value ? 'btn-primary' : 'btn-soft'}`}
-                style={{ flex: '1 1 40%' }}
-                onClick={() => props.onSpeed(value)}
-              >
-                {value.toFixed(1)} {speed === value ? <IconCheck size={22} /> : null}
-              </button>
-            ))}
-            <button
-              className={`btn btn-big ${speed === 1 ? 'btn-primary' : 'btn-soft'}`}
-              style={{ flex: '1 1 100%' }}
-              onClick={() => props.onSpeed(1)}
-            >
-              {t('Обычная скорость')} {speed === 1 ? <IconCheck size={22} /> : null}
-            </button>
-          </div>
-          <p className="muted small" style={{ margin: '0 4px' }}>
-            {t('Нажмите «Смотреть», чтобы сразу услышать разницу.')}
-          </p>
-          <button className="btn btn-primary btn-big btn-block" onClick={() => setMode('base')}>
-            {t('Готово')}
-          </button>
-        </div>
-      ) : null}
+      {/* ONE question at a time — swapped in place, never a separate page. */}
+      <div className="card stack swap-enter" style={{ marginTop: 14 }} key={step}>
+        {card}
+      </div>
 
       <ConfirmDialog
         open={exitConfirm}
@@ -587,79 +663,15 @@ function EditStage(props: {
         onConfirm={props.onExit}
         onCancel={() => setExitConfirm(false)}
       />
-    </div>
-  );
-}
-
-/* ---------------- Confirm: all the numbers, then process ---------------- */
-
-function ConfirmStage(props: {
-  session: EditSessionInfo;
-  segments: Seg[];
-  speed: number;
-  onBack: () => void;
-  onStarted: (job: EditJobInfo) => void;
-}) {
-  const { session, segments, speed } = props;
-  const [busy, setBusy] = useState(false);
-  const keptMs = segments.reduce((sum, s) => sum + (s.end - s.start), 0);
-  const totalMs = segments.length > 0 ? keptMs : session.durationMs;
-  const resultMs = Math.round(totalMs / speed);
-
-  const start = async () => {
-    setBusy(true);
-    try {
-      const { job } = await api.post<{ job: EditJobInfo }>('/api/edit/jobs', {
-        sessionId: session.id,
-        segments: segments.map((s) => ({ startMs: Math.round(s.start), endMs: Math.round(s.end) })),
-        speed,
-      });
-      props.onStarted(job);
-    } catch (e) {
-      showToast(e instanceof Error ? t(e.message) : t('Не получилось начать. Попробуйте ещё раз.'));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="page" style={{ maxWidth: 560 }}>
-      <TopBar title={t('Проверьте и подтвердите')} onBack={props.onBack} />
-      <div className="card stack swap-enter" style={{ gap: 10 }}>
-        <div className="muted">{session.name}</div>
-        {segments.length > 0 ? (
-          <>
-            <div>
-              {t('Оставляем частей: {n}', { n: segments.length })}
-            </div>
-            {segments.map((seg, i) => (
-              <div key={i} style={{ paddingLeft: 10 }}>
-                {t('Часть {i}:', { i: i + 1 })}{' '}
-                <b className="num">
-                  {fmtDuration(seg.start)} – {fmtDuration(seg.end)}
-                </b>{' '}
-                <span className="muted num">({fmtDuration(seg.end - seg.start)})</span>
-              </div>
-            ))}
-          </>
-        ) : (
-          <div>{t('Видео целиком, без обрезки.')}</div>
-        )}
-        <div>
-          {t('Скорость:')}{' '}
-          <b className="num">{speed === 1 ? t('обычная (1.0×)') : t('{s}× — медленнее', { s: speed.toFixed(1) })}</b>
-        </div>
-        <div style={{ fontSize: 22 }}>
-          {t('Итоговая длина:')} <b className="num">{fmtDuration(resultMs)}</b>
-        </div>
-      </div>
-      <div className="stack" style={{ marginTop: 16 }}>
-        <button className="btn btn-primary btn-big btn-block" onClick={() => void start()} disabled={busy}>
-          {busy ? t('Начинаем…') : t('Создать видео')}
-        </button>
-        <button className="btn btn-ghost btn-block" onClick={props.onBack} disabled={busy}>
-          {t('Назад')}
-        </button>
-      </div>
+      <ConfirmDialog
+        open={resetConfirm}
+        title={t('Начать заново?')}
+        body={t('Все отмеченные части и скорость будут убраны.')}
+        confirmLabel={t('Начать заново')}
+        danger
+        onConfirm={startOver}
+        onCancel={() => setResetConfirm(false)}
+      />
     </div>
   );
 }
@@ -729,14 +741,27 @@ function ProcessingStage(props: {
 
 function ResultStage(props: { session: EditSessionInfo; job: EditJobInfo; onRestart: () => void }) {
   const { job } = props;
+  const [nameOpen, setNameOpen] = useState(false);
+  const [fileName, setFileName] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedTo, setSavedTo] = useState<string | null>(null);
 
+  const openNaming = () => {
+    setFileName(displayName(job.outputName));
+    setNameOpen(true);
+  };
+
+  const confirmName = () => {
+    if (!fileName.trim()) return;
+    setNameOpen(false);
+    setPickerOpen(true);
+  };
+
   const save = async (folderId: string | null, folderName: string) => {
     setSaving(true);
     try {
-      await api.post(`/api/edit/jobs/${job.id}/save`, { folderId });
+      await api.post(`/api/edit/jobs/${job.id}/save`, { folderId, name: fileName.trim() });
       setSavedTo(folderName);
       setPickerOpen(false);
     } catch (e) {
@@ -754,7 +779,7 @@ function ResultStage(props: { session: EditSessionInfo; job: EditJobInfo; onRest
         style={{ width: '100%', maxHeight: '46vh', background: '#000', borderRadius: 14, display: 'block' }}
       />
       <div className="card" style={{ marginTop: 12 }}>
-        <div style={{ fontWeight: 600 }}>{job.outputName}</div>
+        <div style={{ fontWeight: 600 }}>{displayName(job.outputName)}</div>
         <div className="muted num">{t('Длина: {d}', { d: fmtDuration(job.durationMs) })}</div>
       </div>
       <div className="stack swap-enter" style={{ marginTop: 16 }}>
@@ -766,7 +791,7 @@ function ResultStage(props: { session: EditSessionInfo; job: EditJobInfo; onRest
             </div>
           </div>
         ) : (
-          <button className="btn btn-primary btn-big btn-block" onClick={() => setPickerOpen(true)}>
+          <button className="btn btn-primary btn-big btn-block" onClick={openNaming}>
             <IconFolder size={24} /> {t('Сохранить в Файлы')}
           </button>
         )}
@@ -777,6 +802,25 @@ function ResultStage(props: { session: EditSessionInfo; job: EditJobInfo; onRest
           {t('Сделать ещё одно видео')}
         </button>
       </div>
+
+      <Dialog open={nameOpen} title={t('Как назвать файл?')} onClose={() => setNameOpen(false)}>
+        <input
+          className="input"
+          value={fileName}
+          onChange={(e) => setFileName(e.target.value)}
+          maxLength={200}
+          autoFocus
+        />
+        <div className="stack" style={{ marginTop: 16 }}>
+          <button className="btn btn-primary btn-big btn-block" onClick={confirmName} disabled={!fileName.trim()}>
+            {t('Далее')}
+          </button>
+          <button className="btn btn-ghost btn-block" onClick={() => setNameOpen(false)}>
+            {t('Отмена')}
+          </button>
+        </div>
+      </Dialog>
+
       <Picker
         mode="folder"
         open={pickerOpen}

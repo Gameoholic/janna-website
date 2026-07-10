@@ -1,44 +1,101 @@
 import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
-import { IconPause, IconPlay } from './icons';
+import { IconCompress, IconExpand, IconNote, IconPause, IconPlay } from './icons';
 import { fmtDuration } from './russian';
 import { t } from './i18n';
+
+/** Cross-browser fullscreen bits — Chrome109/Win7 and Android Chrome both
+ * support the standard API, but feature-detect anyway and hide the button
+ * rather than fail silently on an unexpected browser. */
+type FullscreenDoc = Document & {
+  webkitFullscreenElement?: Element;
+  webkitExitFullscreen?: () => Promise<void>;
+};
+type FullscreenEl = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void>;
+};
+
+function isFullscreenSupported(): boolean {
+  const doc = document as FullscreenDoc;
+  return typeof document.exitFullscreen === 'function' || typeof doc.webkitExitFullscreen === 'function';
+}
+
+function currentFullscreenElement(): Element | null {
+  const doc = document as FullscreenDoc;
+  return document.fullscreenElement || doc.webkitFullscreenElement || null;
+}
 
 /**
  * Plain playback with our own always-visible controls (P12, shared): native
  * `<video controls>` fades its bar out during playback with no way to stop
  * that from the page, which would leave her without a visible «Пауза»
- * button. Instead the control bar sits overlaid on the video — like YouTube
- * / WhatsApp — but never fades or hides itself.
+ * button. Instead the control bar sits overlaid on the media — like YouTube
+ * / WhatsApp — but never fades or hides itself. Fullscreen makes the whole
+ * player (media + our own controls) go fullscreen, not just the bare
+ * element. One player for video AND audio (P12) — audio just shows artwork
+ * instead of a video frame, everything else (play, seek, time, fullscreen)
+ * behaves identically so she never has to learn a second set of controls.
  */
 export function VideoPlayer(props: {
   src: string;
   poster?: string;
   style?: CSSProperties;
+  kind?: 'video' | 'audio';
+  /** Stretch to fill the parent's available space instead of intrinsic size. */
+  fill?: boolean;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const isAudio = props.kind === 'audio';
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoElRef = useRef<HTMLVideoElement>(null);
+  const audioElRef = useRef<HTMLAudioElement>(null);
+  const getMedia = (): HTMLMediaElement | null => (isAudio ? audioElRef.current : videoElRef.current);
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fsSupported] = useState(isFullscreenSupported);
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(currentFullscreenElement() === containerRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    const el = containerRef.current as FullscreenEl | null;
+    const doc = document as FullscreenDoc;
+    if (currentFullscreenElement()) {
+      if (document.exitFullscreen) void document.exitFullscreen();
+      else if (doc.webkitExitFullscreen) void doc.webkitExitFullscreen();
+    } else if (el) {
+      if (el.requestFullscreen) void el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) void el.webkitRequestFullscreen();
+    }
+  };
 
   useEffect(() => {
     let raf = 0;
     const step = () => {
-      const video = videoRef.current;
-      if (video && !draggingRef.current) setPositionMs(video.currentTime * 1000);
+      const media = getMedia();
+      if (media && !draggingRef.current) setPositionMs(media.currentTime * 1000);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAudio]);
 
   const togglePlay = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) void video.play();
-    else video.pause();
+    const media = getMedia();
+    if (!media) return;
+    if (media.paused) void media.play();
+    else media.pause();
   };
 
   const seekFromEvent = (e: ReactPointerEvent) => {
@@ -46,8 +103,8 @@ export function VideoPlayer(props: {
     const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const ms = fraction * durationMs;
     setPositionMs(ms);
-    const video = videoRef.current;
-    if (video) video.currentTime = ms / 1000;
+    const media = getMedia();
+    if (media) media.currentTime = ms / 1000;
   };
 
   const onTrackDown = (e: ReactPointerEvent) => {
@@ -68,27 +125,75 @@ export function VideoPlayer(props: {
   const radius = (props.style?.borderRadius as CSSProperties['borderRadius']) ?? 0;
 
   return (
-    <div style={{ position: 'relative', lineHeight: 0, overflow: 'hidden', borderRadius: radius }}>
-      <video
-        ref={videoRef}
-        src={props.src}
-        poster={props.poster}
-        playsInline
-        preload="metadata"
-        onContextMenu={(e) => e.preventDefault()}
-        onClick={togglePlay}
-        onPlay={() => {
-          setPlaying(true);
-          setStarted(true);
-        }}
-        onPause={() => setPlaying(false)}
-        onLoadedMetadata={(e) => setDurationMs(e.currentTarget.duration * 1000)}
-        style={{ ...props.style, cursor: 'pointer' }}
-      />
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        lineHeight: 0,
+        overflow: 'hidden',
+        borderRadius: radius,
+        width: props.fill ? '100%' : undefined,
+        height: props.fill ? '100%' : undefined,
+        background: fullscreen ? '#000' : undefined,
+        display: fullscreen ? 'flex' : undefined,
+        alignItems: fullscreen ? 'center' : undefined,
+      }}
+    >
+      {isAudio ? (
+        <>
+          <div
+            onClick={togglePlay}
+            onContextMenu={(e) => e.preventDefault()}
+            style={{
+              ...(fullscreen ? { width: '100%', maxHeight: '100%' } : props.style),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'rgba(255,255,255,0.7)',
+            }}
+          >
+            <IconNote size={64} />
+          </div>
+          <audio
+            ref={audioElRef}
+            src={props.src}
+            preload="metadata"
+            onPlay={() => {
+              setPlaying(true);
+              setStarted(true);
+            }}
+            onPause={() => setPlaying(false)}
+            onLoadedMetadata={(e) => setDurationMs(e.currentTarget.duration * 1000)}
+            style={{ display: 'none' }}
+          />
+        </>
+      ) : (
+        <video
+          ref={videoElRef}
+          src={props.src}
+          poster={props.poster}
+          playsInline
+          preload="metadata"
+          onContextMenu={(e) => e.preventDefault()}
+          onClick={togglePlay}
+          onPlay={() => {
+            setPlaying(true);
+            setStarted(true);
+          }}
+          onPause={() => setPlaying(false)}
+          onLoadedMetadata={(e) => setDurationMs(e.currentTarget.duration * 1000)}
+          style={
+            fullscreen
+              ? { width: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }
+              : { ...props.style, cursor: 'pointer' }
+          }
+        />
+      )}
 
       {!playing ? (
         <button className="video-center-play" onClick={togglePlay} aria-label={playing ? t('Пауза') : t('Смотреть')}>
-          <IconPlay size={34} />
+          <IconPlay size={30} />
         </button>
       ) : null}
 
@@ -98,7 +203,7 @@ export function VideoPlayer(props: {
           onClick={togglePlay}
           aria-label={playing ? t('Пауза') : t('Смотреть')}
         >
-          {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
+          {playing ? <IconPause size={18} /> : <IconPlay size={18} />}
         </button>
         <div
           ref={trackRef}
@@ -113,6 +218,15 @@ export function VideoPlayer(props: {
         <div className="video-overlay-time num">
           {fmtDuration(started ? positionMs : 0)} / {fmtDuration(durationMs)}
         </div>
+        {fsSupported ? (
+          <button
+            className="video-overlay-btn"
+            onClick={toggleFullscreen}
+            aria-label={fullscreen ? t('Свернуть') : t('На весь экран')}
+          >
+            {fullscreen ? <IconCompress size={16} /> : <IconExpand size={16} />}
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -83,21 +83,28 @@ function HomeStage(props: {
   );
   const [opened, setOpened] = useState<ReminderInfo | null>(null);
 
-  const todayStart = startOfDay(Date.now());
+  const nowMs = Date.now();
+  const todayStart = startOfDay(nowMs);
   const tomorrowStart = addDays(todayStart, 1);
   const afterTomorrow = addDays(todayStart, 2);
 
-  const today = props.reminders.filter((r) => r.dueAt >= todayStart && r.dueAt < tomorrowStart);
-  const tomorrow = props.reminders.filter((r) => r.dueAt >= tomorrowStart && r.dueAt < afterTomorrow);
-  const selectedList = props.reminders.filter(
-    (r) => startOfDay(r.dueAt) === props.selectedDay
-  );
+  // Once a reminder's time has passed it's done: a dismissed alarm is deleted
+  // immediately (P9/P10), so anything still here past its time is a stuck
+  // «ringing»/«snoozed» alarm that never got acknowledged. The full-screen
+  // takeover (shared/alarm.tsx, driven independently by SSE + resync-on-open)
+  // is the mechanism that guarantees she never misses it — this home view is
+  // just the upcoming list, so already-past reminders are filtered out here.
+  const upcoming = props.reminders.filter((r) => r.dueAt >= nowMs);
+
+  const today = upcoming.filter((r) => r.dueAt < tomorrowStart);
+  const tomorrow = upcoming.filter((r) => r.dueAt >= tomorrowStart && r.dueAt < afterTomorrow);
+  const selectedList = upcoming.filter((r) => startOfDay(r.dueAt) === props.selectedDay);
 
   const marks = useMemo(() => {
     const set = new Set<string>();
-    for (const r of props.reminders) set.add(dayKey(r.dueAt));
+    for (const r of upcoming) set.add(dayKey(r.dueAt));
     return set;
-  }, [props.reminders]);
+  }, [upcoming]);
 
   const showSelectedSection =
     props.selectedDay !== todayStart && props.selectedDay !== tomorrowStart;
