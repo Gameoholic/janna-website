@@ -4,6 +4,11 @@ ssh daniel@10.0.0.5
 
 admin website url: https://app.jannawebsite.online/dev/
 
+cd /opt/janna-website
+
+
+After git pull on the Pi (in /opt/janna-website):
+docker compose up -d --build
 
 [20:54, 7/15/2026] Daniel: https://app.jannawebsite.online/setup/euPTP9a-JJ8prGMMfWciUoSbUsgEWKIFzOwrlpep0Sw
 [20:54, 7/15/2026] Daniel: טלפון
@@ -24,6 +29,8 @@ grandm acomputer
 [20:54, 7/15/2026] Daniel: 10.0.0.5
 [20:54, 7/15/2026] Daniel: ssh daniel@10.0.0.5
 password: daniel
+
+
 
 
 also make sure we trasnferred over all folders and files from her drive to the new thing
