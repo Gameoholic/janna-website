@@ -1,3 +1,33 @@
+# NOTES FOR DANIEL - DO NOT DELETE
+
+ssh daniel@10.0.0.5
+
+admin website url: https://app.jannawebsite.online/dev/
+
+
+[20:54, 7/15/2026] Daniel: https://app.jannawebsite.online/setup/euPTP9a-JJ8prGMMfWciUoSbUsgEWKIFzOwrlpep0Sw
+[20:54, 7/15/2026] Daniel: טלפון
+[20:54, 7/15/2026] Daniel: https://app.jannawebsite.online/setup/BMAgZzHzm2QkPYQAZCMmJV0KahsT8c7-lR2Uhcgjlgg
+[20:54, 7/15/2026] Daniel: granmda updated^
+[20:54, 7/15/2026] Daniel: 5. Make reminders reliable on Android (one-time, required):
+
+In Напоминания, tap «Разрешить» on the notifications card once
+Settings → Apps → Chrome → Battery → Unrestricted
+Settings → Battery and device care → Background usage limits → Never sleeping apps → add Chrome
+Settings → Apps → Chrome → Notifications → make sure allowed, not silent
+Test from the dev panel: "Test alarm in 5s" — once with the app open, once with the phone locked
+
+
+todo the above^
+[20:54, 7/15/2026] Daniel: https://app.jannawebsite.online/setup/3a6E-CFW2-Ck1a1onkcbscKfIM5oc8HIQ2lHRWJxA38
+grandm acomputer
+[20:54, 7/15/2026] Daniel: 10.0.0.5
+[20:54, 7/15/2026] Daniel: ssh daniel@10.0.0.5
+password: daniel
+
+
+also make sure we trasnferred over all folders and files from her drive to the new thing
+
 # janna-website
 
 Three apps for my grandma — **Видео** (video editor), **Файлы** (storage),

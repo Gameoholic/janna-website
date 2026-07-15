@@ -7,12 +7,35 @@ services:
       - PORT=8077
       - PUBLIC_ORIGIN=${PUBLIC_ORIGIN:-}
       - TZ=${TZ:-Europe/Moscow}
+      - UPDATER_URL=http://updater:8090
+      - UPDATER_TOKEN=${UPDATER_TOKEN:-}
     volumes:
       - ./data:/data
     # Only needed for LAN access without the tunnel; cloudflared reaches the
     # app over the compose network either way.
     ports:
       - "8077:8077"
+
+  # Powers the admin panel's "Deploy from GitHub" button. Kept separate from
+  # `app` on purpose: it's the only thing that touches the Docker socket and
+  # the repo checkout, so a compromise of the (much larger) app codebase
+  # doesn't automatically hand over the socket too. Still, Docker-socket
+  # access is root-equivalent on the host — see docs/SETUP.md before enabling.
+  updater:
+    build: ./deploy/updater
+    restart: unless-stopped
+    environment:
+      - UPDATER_TOKEN=${UPDATER_TOKEN:-}
+      - REPO_DIR=${HOST_REPO_PATH}
+      - DEPLOY_BRANCH=${DEPLOY_BRANCH:-main}
+    volumes:
+      # Must be the repo's real path on the HOST, not a container path: the
+      # updater talks to the host's dockerd over the socket below, and the
+      # daemon resolves bind-mount sources against its own (host) filesystem.
+      - ${HOST_REPO_PATH}:${HOST_REPO_PATH}
+      - /var/run/docker.sock:/var/run/docker.sock
+    # No published port: reachable only from `app`, over the private compose
+    # network, by service name.
 
   cloudflared:
     image: cloudflare/cloudflared:latest

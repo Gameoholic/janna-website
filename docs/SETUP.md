@@ -65,6 +65,39 @@ docker compose up -d --build
 - Updating: `git pull && docker compose up -d --build`. SQLite migrations run
   automatically on boot.
 
+### "Deploy from GitHub" button (optional, one-time setup)
+
+The dev panel (§2) can show how many commits behind `origin/main` the Pi is
+and pull + rebuild + restart with one click, instead of SSHing in for every
+change. It works via a small **updater sidecar** (`deploy/updater/`) — a
+separate container holding only `git` + the Docker CLI, kept apart from the
+main app on purpose: it's the one thing with access to the Docker socket and
+your repo checkout, so a bug or compromise in the (much larger) app container
+doesn't hand that access over too.
+
+**Be aware:** Docker-socket access is root-equivalent on the host — anything
+with that socket can run arbitrary containers with arbitrary mounts. This is
+reasonable for a personal Pi with a single trusted operator (you), same as
+SSH access already implies. Skip this whole section if you'd rather not grant
+it; every other feature works fine without it, the panel just won't show the
+deploy card.
+
+One-time setup, over SSH on the Pi:
+
+```bash
+# In .env, alongside the other values:
+echo "HOST_REPO_PATH=$(pwd)" >> .env       # must be the repo's real path on THIS host
+echo "UPDATER_TOKEN=$(openssl rand -hex 24)" >> .env
+docker compose up -d --build               # brings up the new `updater` service too
+```
+
+After that, the panel's **Deploy from GitHub** card lists pending commits and
+has a **Pull & redeploy** button — it runs `git pull --ff-only` then
+`docker compose up -d --build app` on the Pi and streams the log back live.
+It refuses to run if the checkout has local modifications or is already
+current. Only the `app` container restarts; `updater` and `cloudflared` are
+untouched, so the job survives the app's own restart.
+
 ### Cloudflare Tunnel (HTTPS + stable hostname, no port forwarding)
 
 1. Cloudflare Zero Trust → Networks → Tunnels → **Create a tunnel** (Docker).

@@ -35,6 +35,11 @@ export function ensureDirs(): void {
 export const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 export const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
 
+// Admin panel "Deploy from GitHub" — talks to the updater sidecar (see
+// deploy/updater/). Blank UPDATER_URL means the feature is simply hidden.
+export const UPDATER_URL = process.env.UPDATER_URL || '';
+export const UPDATER_TOKEN = process.env.UPDATER_TOKEN || '';
+
 // Timezone used for Russian-language date strings composed on the server
 // (push notification bodies). Defaults to the server's local timezone.
 export const TIMEZONE = process.env.TZ_NAME || Intl.DateTimeFormat().resolvedOptions().timeZone;

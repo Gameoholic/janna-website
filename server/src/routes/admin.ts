@@ -2,13 +2,25 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { db } from '../db';
-import { DIRS } from '../config';
+import { DATA_DIR, DIRS, UPDATER_TOKEN, UPDATER_URL } from '../config';
 import { COOKIE_DEVICE, cookieOptions, createSetupCode, provisionDevice } from '../auth';
 import { id, now } from '../util';
 import { tailLog, log } from '../log';
 import { getLeadTimes, setLeadTimes } from '../scheduler';
 import { sseClientCount, broadcast } from '../sse';
 import { originOf } from './share';
+
+/** Filesystem-wide space on the volume backing DATA_DIR (the Pi's SD card/disk), not just her files. */
+function diskUsage(dir: string): { total: number; free: number; used: number } {
+  try {
+    const st = fs.statfsSync(dir);
+    const total = st.blocks * st.bsize;
+    const free = st.bavail * st.bsize;
+    return { total, free, used: total - free };
+  } catch {
+    return { total: 0, free: 0, used: 0 };
+  }
+}
 
 function dirSize(dir: string): number {
   let total = 0;
@@ -46,6 +58,7 @@ adminRouter.get('/overview', (_req, res) => {
       editor: dirSize(path.join(DIRS.editorSources, '..')),
       trash: dirSize(DIRS.trash),
     },
+    disk: diskUsage(DATA_DIR),
     sseClients: sseClientCount(),
     leadTimesMs: getLeadTimes(),
     uptimeSec: Math.round(process.uptime()),
@@ -219,4 +232,59 @@ adminRouter.post('/trash/empty', (_req, res) => {
   }
   log.info(`trash emptied (${removed} entries)`);
   res.json({ ok: true, removed });
+});
+
+/**
+ * "Deploy from GitHub" — proxies to the updater sidecar (deploy/updater/),
+ * which is the only thing with Docker-socket + repo access. UPDATER_URL is
+ * blank whenever that sidecar isn't set up, in which case the panel just
+ * hides the feature.
+ */
+function updaterFetch(urlPath: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${UPDATER_URL}${urlPath}`, {
+    ...init,
+    headers: { ...(init?.headers as Record<string, string> | undefined), 'X-Updater-Token': UPDATER_TOKEN },
+  });
+}
+
+adminRouter.get('/deploy/status', async (_req, res) => {
+  if (!UPDATER_URL) {
+    res.json({ available: false });
+    return;
+  }
+  try {
+    const r = await updaterFetch('/status');
+    const data = (await r.json()) as Record<string, unknown>;
+    res.status(r.status).json({ available: true, ...data });
+  } catch (e) {
+    res.status(502).json({ available: true, error: 'unreachable', message: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+adminRouter.post('/deploy/update', async (_req, res) => {
+  if (!UPDATER_URL) {
+    res.status(400).json({ error: 'not-configured', message: 'Updater sidecar is not configured.' });
+    return;
+  }
+  try {
+    const r = await updaterFetch('/update', { method: 'POST' });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'unreachable', message: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+adminRouter.get('/deploy/update/current', async (_req, res) => {
+  if (!UPDATER_URL) {
+    res.json({ status: 'idle', log: '', startedAt: null, finishedAt: null });
+    return;
+  }
+  try {
+    const r = await updaterFetch('/update/current');
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ status: 'error', log: e instanceof Error ? e.message : String(e), startedAt: null, finishedAt: null });
+  }
 });

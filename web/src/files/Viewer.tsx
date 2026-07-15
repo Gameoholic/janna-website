@@ -96,8 +96,8 @@ export function Viewer(props: {
         >
           <IconBack size={24} />
         </button>
-        <div className="grow" style={{ overflow: 'hidden' }}>
-          <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div className="grow">
+          <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>
             {displayName(file.name)}
           </div>
           <div className="small num" style={{ color: '#9CA3AF' }}>

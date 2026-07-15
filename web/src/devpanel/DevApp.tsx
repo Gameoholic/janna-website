@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import '../shared/tokens.css';
 import { api, ApiError } from '../shared/api';
-import { copyText } from '../shared/ui';
+import { copyText, ProgressBar } from '../shared/ui';
 import { getLang, setLang } from '../shared/i18n';
 
 /**
@@ -13,10 +13,31 @@ interface Overview {
   devices: { id: string; name: string; created_at: number; last_seen: number | null; has_push: number }[];
   counts: Record<string, number>;
   storage: Record<string, number>;
+  disk: { total: number; free: number; used: number };
   sseClients: number;
   leadTimesMs: number[];
   uptimeSec: number;
   node: string;
+}
+
+interface DeployStatus {
+  available: boolean;
+  branch?: string;
+  localShort?: string;
+  localMessage?: string;
+  localDate?: string;
+  behind?: number;
+  commits?: { sha: string; message: string; date: string }[];
+  dirty?: boolean;
+  error?: string;
+  message?: string;
+}
+
+interface DeployJob {
+  status: 'idle' | 'running' | 'done' | 'error';
+  log: string;
+  startedAt: number | null;
+  finishedAt: number | null;
 }
 
 function fmtBytes(n: number): string {
@@ -34,11 +55,22 @@ export function DevApp() {
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
   const [leads, setLeads] = useState('');
+  const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
+  const [deployJob, setDeployJob] = useState<DeployJob | null>(null);
+  const pollRef = useRef<number | null>(null);
 
   const say = (text: string) => {
     setMessage(text);
     window.setTimeout(() => setMessage(''), 4000);
   };
+
+  const refreshDeployStatus = useCallback(async () => {
+    try {
+      setDeployStatus(await api.get<DeployStatus>('/api/admin/deploy/status'));
+    } catch {
+      setDeployStatus({ available: false });
+    }
+  }, []);
 
   const loadAll = useCallback(async () => {
     try {
@@ -50,14 +82,50 @@ export function DevApp() {
       setCodes(codesRes.codes);
       const sharesRes = await api.get<{ shares: typeof shares }>('/api/admin/shares');
       setShares(sharesRes.shares);
+      await refreshDeployStatus();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setAuthorized(false);
     }
-  }, []);
+  }, [refreshDeployStatus]);
 
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const pollDeployJob = useCallback(() => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const job = await api.get<DeployJob>('/api/admin/deploy/update/current');
+        setDeployJob(job);
+        if (job.status !== 'running') {
+          if (pollRef.current) window.clearInterval(pollRef.current);
+          pollRef.current = null;
+          await refreshDeployStatus();
+        }
+      } catch {
+        // App container is likely mid-restart from its own rebuild — keep
+        // retrying silently until it comes back.
+      }
+    }, 1500);
+  }, [refreshDeployStatus]);
+
+  const startDeploy = async () => {
+    if (!window.confirm('Pull the latest commits and rebuild? The app container restarts (a few seconds of downtime).')) return;
+    try {
+      await api.post('/api/admin/deploy/update');
+      setDeployJob({ status: 'running', log: '', startedAt: Date.now(), finishedAt: null });
+      pollDeployJob();
+    } catch (e) {
+      say(e instanceof Error ? e.message : 'Failed to start deploy.');
+    }
+  };
 
   if (authorized === null) return <div style={{ padding: 40 }}>Loading…</div>;
   if (!authorized) {
@@ -111,6 +179,86 @@ export function DevApp() {
         </div>
       </div>
 
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2>Deploy from GitHub</h2>
+        {!deployStatus ? (
+          <p className="muted small">Loading…</p>
+        ) : !deployStatus.available ? (
+          <p className="muted small">
+            Updater sidecar not configured — set <code>HOST_REPO_PATH</code> and <code>UPDATER_TOKEN</code> in{' '}
+            <code>.env</code>, then <code>docker compose up -d --build</code> once over SSH to bring it up. See
+            docs/SETUP.md.
+          </p>
+        ) : deployStatus.error ? (
+          <p style={{ color: 'var(--danger)' }}>
+            {deployStatus.message || deployStatus.error}
+          </p>
+        ) : (
+          <>
+            <p>
+              Branch <b>{deployStatus.branch}</b> · running <code>{deployStatus.localShort}</code> «
+              {deployStatus.localMessage}»
+            </p>
+            {deployStatus.dirty ? (
+              <p style={{ color: 'var(--danger)' }}>⚠ The Pi's checkout has local changes — resolve over SSH before updating.</p>
+            ) : deployStatus.behind === 0 ? (
+              <p style={{ color: 'var(--ok)', fontWeight: 600 }}>✓ Up to date.</p>
+            ) : (
+              <>
+                <p style={{ color: 'var(--accent)', fontWeight: 600, marginBottom: 4 }}>
+                  {deployStatus.behind} commit{deployStatus.behind === 1 ? '' : 's'} behind:
+                </p>
+                <ul style={{ margin: '0 0 12px', paddingLeft: 20, fontSize: 14 }}>
+                  {deployStatus.commits?.map((c) => (
+                    <li key={c.sha}>
+                      <code>{c.sha}</code> {c.message}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <div className="row-wrap">
+              <button className="btn btn-compact" onClick={() => void refreshDeployStatus()}>
+                Check for updates
+              </button>
+              <button
+                className="btn btn-compact btn-primary"
+                disabled={!!deployStatus.dirty || deployStatus.behind === 0 || deployJob?.status === 'running'}
+                onClick={() => void startDeploy()}
+              >
+                Pull &amp; redeploy
+              </button>
+            </div>
+            {deployJob && deployJob.status !== 'idle' ? (
+              <div style={{ marginTop: 14 }}>
+                <div className="row" style={{ marginBottom: 8 }}>
+                  {deployJob.status === 'running' ? (
+                    <div className="spinner" style={{ width: 22, height: 22, borderWidth: 3, marginRight: 10 }} />
+                  ) : null}
+                  <b>
+                    {deployJob.status === 'running' ? 'Deploying…' : deployJob.status === 'done' ? '✓ Deployed' : '✗ Failed'}
+                  </b>
+                </div>
+                <pre
+                  style={{
+                    fontSize: 12,
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                    overflowX: 'auto',
+                    background: '#101418',
+                    color: '#D1E7DD',
+                    padding: 12,
+                    borderRadius: 8,
+                  }}
+                >
+                  {deployJob.log || '…'}
+                </pre>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+
       {overview ? (
         <div className="card" style={{ marginBottom: 18 }}>
           <h2>Status</h2>
@@ -123,6 +271,16 @@ export function DevApp() {
             Storage — media: <b>{fmtBytes(overview.storage.media)}</b>, thumbs: <b>{fmtBytes(overview.storage.thumbs)}</b>,
             editor: <b>{fmtBytes(overview.storage.editor)}</b>, trash: <b>{fmtBytes(overview.storage.trash)}</b>
           </p>
+          <div style={{ margin: '10px 0' }}>
+            <div className="row" style={{ marginBottom: 4 }}>
+              <span className="grow">Disk (whole device)</span>
+              <span>
+                <b>{fmtBytes(overview.disk.used)}</b> / {fmtBytes(overview.disk.total)} used ·{' '}
+                {fmtBytes(overview.disk.free)} free
+              </span>
+            </div>
+            <ProgressBar value={overview.disk.total ? overview.disk.used / overview.disk.total : 0} />
+          </div>
           <p>
             Open app windows (SSE): <b>{overview.sseClients}</b> · Uptime: <b>{Math.round(overview.uptimeSec / 60)} min</b> · Node{' '}
             {overview.node}

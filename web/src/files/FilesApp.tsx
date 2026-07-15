@@ -381,8 +381,8 @@ export function FilesApp() {
           ) : (
             <span style={{ width: 64, display: 'flex', justifyContent: 'center', flex: '0 0 auto' }}>{kindIcon(file, 28)}</span>
           )}
-          <span className="grow" style={{ overflow: 'hidden' }}>
-            <span style={{ display: 'block', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className="grow">
+            <span style={{ display: 'block', fontWeight: 600, wordBreak: 'break-word' }}>
               {displayName(file.name)}
             </span>
             <span className="muted small">{folderPath.length ? folderPath[folderPath.length - 1].name : t('Файлы')}</span>
@@ -480,7 +480,7 @@ export function FilesApp() {
       onContextMenu={(e) => menu.openFromEvent(e, folderMenuItems(folder))}
     >
       <IconFolder size={variant === 'side' ? 24 : 28} />
-      <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span className="grow" style={{ wordBreak: 'break-word' }}>
         {folder.name}
       </span>
       <span className="side-count num">{folder.fileCount || ''}</span>
@@ -555,7 +555,7 @@ export function FilesApp() {
 
   /* ---------------- Desktop: flat sidebar + contents (WhatsApp model, P4) ---------------- */
   return (
-    <div className="page">
+    <div className="page" style={{ maxWidth: 1280 }}>
       <TopBar title={t('Файлы')} />
       <div className="split">
         <aside className="sidebar">
