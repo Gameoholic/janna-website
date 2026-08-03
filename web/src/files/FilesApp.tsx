@@ -575,7 +575,7 @@ export function FilesApp() {
           state.folders.length === 0 ? (
             noFoldersPrompt
           ) : (
-            <div className="list-wrap" style={{ marginBottom: 16 }}>
+            <div className="list-wrap attn-pulse" style={{ marginBottom: 16 }}>
               {state.folders.map((folder) => folderRow(folder, 'list'))}
             </div>
           )
@@ -611,7 +611,7 @@ export function FilesApp() {
     <div className="page" style={{ maxWidth: 1280 }}>
       <TopBar title={t('Файлы')} />
       <div className="split">
-        <aside className="sidebar">
+        <aside className={`sidebar${currentId === null && state.folders.length > 0 ? ' attn-pulse' : ''}`}>
           {state.folders.map((folder) => folderRow(folder, 'side'))}
           <div style={{ padding: '10px 12px 4px' }}>
             <button className="btn btn-ghost btn-block" onClick={() => { setNewFolderName(''); setNewFolderOpen(true); }}>
