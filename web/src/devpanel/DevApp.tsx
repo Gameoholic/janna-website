@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import '../shared/tokens.css';
 import { api, ApiError } from '../shared/api';
-import { copyText, ProgressBar } from '../shared/ui';
+import { copyText } from '../shared/ui';
 import { getLang, setLang } from '../shared/i18n';
 
 /**
@@ -107,6 +107,47 @@ const ERROR_QUIPS = ["Well, that's disappointing.", 'The log below has the gory 
 function fmtElapsed(sec: number): string {
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+/** Single-ratio "how full is the disk" gauge — a ring meter, not a categorical pie. */
+function DiskDonut({ used, total, free }: { used: number; total: number; free: number }) {
+  const fraction = total ? Math.min(1, used / total) : 0;
+  const pct = Math.round(fraction * 100);
+  const size = 120;
+  const stroke = 14;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="row" style={{ gap: 20, alignItems: 'center' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex: '0 0 auto' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - fraction)}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+        <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fontSize="22" fontWeight="700" fill="var(--text)">
+          {pct}%
+        </text>
+        <text x="50%" y="65%" textAnchor="middle" dominantBaseline="middle" fontSize="11" fill="var(--muted)">
+          used
+        </text>
+      </svg>
+      <div className="grow">
+        <div>
+          <b>{fmtBytes(used)}</b> / {fmtBytes(total)} used
+        </div>
+        <div className="muted small">{fmtBytes(free)} free</div>
+      </div>
+    </div>
+  );
 }
 
 function fmtBytes(n: number): string {
@@ -369,14 +410,10 @@ export function DevApp() {
             editor: <b>{fmtBytes(overview.storage.editor)}</b>, trash: <b>{fmtBytes(overview.storage.trash)}</b>
           </p>
           <div style={{ margin: '10px 0' }}>
-            <div className="row" style={{ marginBottom: 4 }}>
-              <span className="grow">Disk (whole device)</span>
-              <span>
-                <b>{fmtBytes(overview.disk.used)}</b> / {fmtBytes(overview.disk.total)} used ·{' '}
-                {fmtBytes(overview.disk.free)} free
-              </span>
+            <div className="muted small" style={{ marginBottom: 6 }}>
+              Disk (whole device)
             </div>
-            <ProgressBar value={overview.disk.total ? overview.disk.used / overview.disk.total : 0} />
+            <DiskDonut used={overview.disk.used} total={overview.disk.total} free={overview.disk.free} />
           </div>
           <p>
             Open app windows (SSE): <b>{overview.sseClients}</b> · Uptime: <b>{Math.round(overview.uptimeSec / 60)} min</b> · Node{' '}
