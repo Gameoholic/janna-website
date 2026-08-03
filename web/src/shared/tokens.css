@@ -552,15 +552,21 @@ h2 { font-size: 21px; }
   width: 100%;
   min-height: 58px;
   border: none;
+  border-left: 4px solid transparent;
   background: transparent;
-  padding: 8px 16px;
+  padding: 8px 16px 8px 12px;
   font-size: 19px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
   border-radius: 0;
 }
-.side-row.active { background: var(--accent-soft); }
+.side-row.active {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
 .side-count {
   margin-left: auto;
   color: var(--muted);
