@@ -24,6 +24,11 @@ function currentFullscreenElement(): Element | null {
   return document.fullscreenElement || doc.webkitFullscreenElement || null;
 }
 
+// View-only playback speed (like VLC) — never touches the file itself, just
+// how fast this one playback session plays it. Independent from the video
+// editor's 0.6–0.9 pitch-preserved export speed (8A), which bakes a new file.
+const PLAYBACK_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 /**
  * Plain playback with our own always-visible controls (P12, shared): native
  * `<video controls>` fades its bar out during playback with no way to stop
@@ -56,6 +61,29 @@ export function VideoPlayer(props: {
   const [durationMs, setDurationMs] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [fsSupported] = useState(isFullscreenSupported);
+  const [rate, setRate] = useState(1);
+
+  // A freshly opened file always starts at normal speed — she shouldn't have
+  // to remember that the last file she watched was left at 1.5× (P2).
+  useEffect(() => {
+    setRate(1);
+  }, [props.src]);
+
+  useEffect(() => {
+    const media = getMedia();
+    if (!media) return;
+    media.playbackRate = rate;
+    // Keeps pitch normal at faster/slower speeds instead of chipmunk/slow-mo audio.
+    const m = media as unknown as { preservesPitch?: boolean; webkitPreservesPitch?: boolean };
+    m.preservesPitch = true;
+    m.webkitPreservesPitch = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rate, props.src]);
+
+  const cycleSpeed = () => {
+    const idx = PLAYBACK_SPEEDS.indexOf(rate);
+    setRate(PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length]);
+  };
 
   useEffect(() => {
     const onChange = () => setFullscreen(currentFullscreenElement() === containerRef.current);
@@ -218,6 +246,9 @@ export function VideoPlayer(props: {
         <div className="video-overlay-time num">
           {fmtDuration(started ? positionMs : 0)} / {fmtDuration(durationMs)}
         </div>
+        <button className="video-overlay-speed num" onClick={cycleSpeed} aria-label={t('Скорость просмотра')}>
+          {rate}×
+        </button>
         {fsSupported ? (
           <button
             className="video-overlay-btn"

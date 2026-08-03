@@ -536,6 +536,22 @@ h2 { font-size: 21px; }
   cursor: pointer;
 }
 .video-overlay-btn:active { background: rgba(255, 255, 255, 0.3); }
+.video-overlay-speed {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-overlay-speed:active { background: rgba(255, 255, 255, 0.3); }
 .video-overlay-time {
   flex: 0 0 auto;
   color: #fff;

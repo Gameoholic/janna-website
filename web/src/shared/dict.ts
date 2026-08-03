@@ -10,6 +10,7 @@
 export const EN: Record<string, string> = {
   // ---- shared: ui / AppShell / alarm / VideoPlayer ----
   'На весь экран': 'Fullscreen',
+  'Скорость просмотра': 'Playback speed',
   'Свернуть': 'Exit fullscreen',
   'Отмена': 'Cancel',
   'Подождите…': 'Please wait…',
