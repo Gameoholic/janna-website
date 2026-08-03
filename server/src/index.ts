@@ -9,6 +9,7 @@ import { initPush, vapidPublicKey, saveSubscription } from './push';
 import { addSseClient } from './sse';
 import { startScheduler } from './scheduler';
 import { filesRouter } from './routes/files';
+import { uploadsRouter } from './routes/uploads';
 import { shareApiRouter, sharePublicRouter } from './routes/share';
 import { videoRouter } from './routes/video';
 import { remindersRouter } from './routes/reminders';
@@ -50,6 +51,7 @@ api.post('/push/subscribe', (req, res) => {
   res.json({ ok: true });
 });
 api.use(filesRouter);
+api.use(uploadsRouter);
 api.use(shareApiRouter);
 api.use(videoRouter);
 api.use(remindersRouter);
@@ -93,7 +95,10 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 
 startScheduler();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log.info(`server listening on http://localhost:${PORT}`);
   log.info(`developer entry: http://localhost:${PORT}/dev?key=${adminSecret}`);
 });
+// Node's default requestTimeout (5 min) can abort large video uploads on a
+// slow connection well before they finish; give uploads real headroom.
+server.requestTimeout = 30 * 60 * 1000;

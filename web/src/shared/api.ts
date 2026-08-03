@@ -73,6 +73,68 @@ export function uploadWithProgress(
   return { promise, abort: () => xhr.abort() };
 }
 
+// Cloudflare Tunnel enforces a hard ~100MB cap per HTTP request at its edge —
+// no origin-side setting can raise it. Anything at or above this goes through
+// uploadLarge() instead, comfortably under that cap per chunk.
+export const LARGE_FILE_THRESHOLD = 80 * 1024 * 1024;
+
+interface InitUploadResponse {
+  uploadId: string;
+  chunkSize: number;
+  totalChunks: number;
+}
+
+function sendChunk(url: string, blob: Blob, onLoaded: (loaded: number) => void): { promise: Promise<void>; xhr: XMLHttpRequest } {
+  const xhr = new XMLHttpRequest();
+  const promise = new Promise<void>((resolve, reject) => {
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onLoaded(e.loaded);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new ApiError(xhr.status, GENERIC_MESSAGE));
+    };
+    xhr.onerror = () => reject(new ApiError(0, NETWORK_MESSAGE));
+    xhr.onabort = () => reject(new ApiError(0, 'Загрузка отменена.'));
+    xhr.send(blob);
+  });
+  return { promise, xhr };
+}
+
+/**
+ * Uploads a file too large for one request in chunks, then calls completeUrl
+ * with { uploadId } to reassemble + register it — completeUrl's response is
+ * returned as-is, matching what the direct multipart endpoints return.
+ */
+export function uploadLarge(completeUrl: string, file: File, onProgress: (fraction: number) => void): UploadHandle {
+  let aborted = false;
+  let currentXhr: XMLHttpRequest | null = null;
+  const promise = (async () => {
+    const init = await request<InitUploadResponse>('POST', '/api/uploads/init', { name: file.name, size: file.size });
+    for (let i = 0; i < init.totalChunks; i++) {
+      if (aborted) throw new ApiError(0, 'Загрузка отменена.');
+      const start = i * init.chunkSize;
+      const blob = file.slice(start, Math.min(start + init.chunkSize, file.size));
+      const { promise: chunkPromise, xhr } = sendChunk(`/api/uploads/${init.uploadId}/chunk/${i}`, blob, (loaded) =>
+        onProgress((start + loaded) / file.size)
+      );
+      currentXhr = xhr;
+      await chunkPromise;
+    }
+    currentXhr = null;
+    return request('POST', completeUrl, { uploadId: init.uploadId });
+  })();
+  return {
+    promise,
+    abort: () => {
+      aborted = true;
+      currentXhr?.abort();
+    },
+  };
+}
+
 // ---- Shared API types ----
 
 export interface FolderInfo {

@@ -4,6 +4,8 @@ import {
   EditJobInfo,
   EditSessionInfo,
   FileInfo,
+  LARGE_FILE_THRESHOLD,
+  uploadLarge,
   uploadWithProgress,
 } from '../shared/api';
 import { ConfirmDialog, Dialog, ProgressBar, showToast, TopBar } from '../shared/ui';
@@ -107,10 +109,16 @@ function PickStage(props: {
   const abortRef = useRef<(() => void) | null>(null);
 
   const startUpload = (file: File) => {
-    const form = new FormData();
-    form.append('file', file, file.name);
     props.onUploading(0);
-    const handle = uploadWithProgress('/api/edit/sources', form, (fraction) => props.onUploading(fraction));
+    const onProgress = (fraction: number) => props.onUploading(fraction);
+    let handle;
+    if (file.size >= LARGE_FILE_THRESHOLD) {
+      handle = uploadLarge('/api/edit/sources/chunked', file, onProgress);
+    } else {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      handle = uploadWithProgress('/api/edit/sources', form, onProgress);
+    }
     abortRef.current = handle.abort;
     handle.promise
       .then((data) => {

@@ -7,6 +7,7 @@ import { db } from '../db';
 import { DIRS } from '../config';
 import { id, now, extOf } from '../util';
 import { probe, makeVideoThumb, makeImageThumb } from '../ffmpeg';
+import { completeUpload } from '../chunkedUpload';
 import { log } from '../log';
 
 export interface FolderRow {
@@ -304,6 +305,32 @@ filesRouter.post('/upload', upload.array('files', 50), async (req, res) => {
     return;
   }
   res.json({ files: results });
+});
+
+/** Finishes a chunked upload (see routes/uploads.ts) — files too big for one request. */
+filesRouter.post('/upload/chunked', async (req, res) => {
+  const folderId = req.query.folderId && req.query.folderId !== 'root' ? String(req.query.folderId) : null;
+  if (!folderId || !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)) {
+    res.status(folderId ? 404 : 400).json({ message: folderId ? 'Папка не найдена.' : 'Сначала выберите папку.' });
+    return;
+  }
+  const uploadId = String(req.body?.uploadId || '');
+  let assembled: { path: string; name: string };
+  try {
+    assembled = completeUpload(uploadId);
+  } catch (e) {
+    res.status(400).json({ message: e instanceof Error ? e.message : 'Не получилось загрузить файл.' });
+    return;
+  }
+  try {
+    // The name arrived as plain JSON (not multipart), so it's already
+    // correct UTF-8 — fixUploadName is only for busboy's latin1 mangling.
+    const row = await registerFile({ sourcePath: assembled.path, name: assembled.name, folderId, origin: 'upload', move: true });
+    res.json({ files: [fileToJson(row)] });
+  } catch (e) {
+    log.error(`chunked upload failed for ${assembled.name}`, e);
+    res.status(500).json({ message: 'Не получилось загрузить файл. Попробуйте ещё раз.' });
+  }
 });
 
 filesRouter.get('/files/:id', (req, res) => {

@@ -3,8 +3,10 @@ import {
   api,
   FileInfo,
   FolderInfo,
+  LARGE_FILE_THRESHOLD,
   PathPart,
   StorageState,
+  uploadLarge,
   uploadWithProgress,
 } from '../shared/api';
 import { ConfirmDialog, Dialog, ProgressBar, showToast, TopBar, useIsPhone } from '../shared/ui';
@@ -156,25 +158,76 @@ export function FilesApp() {
     const folderId = currentId;
     const filesArr = Array.from(list);
     if (filesArr.length === 0) return;
-    const form = new FormData();
-    for (const f of filesArr) form.append('files', f, f.name);
+
+    // Cloudflare Tunnel caps a single request at ~100MB. Files at or over
+    // that go up individually in chunks; smaller ones are still grouped
+    // into one request each, but only as many as fit under the cap together.
+    const batches: File[][] = [];
+    let current: File[] = [];
+    let currentBytes = 0;
+    for (const f of filesArr) {
+      if (f.size >= LARGE_FILE_THRESHOLD) {
+        if (current.length) batches.push(current);
+        batches.push([f]);
+        current = [];
+        currentBytes = 0;
+        continue;
+      }
+      if (current.length && currentBytes + f.size >= LARGE_FILE_THRESHOLD) {
+        batches.push(current);
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(f);
+      currentBytes += f.size;
+    }
+    if (current.length) batches.push(current);
+
+    const totalBytes = filesArr.reduce((sum, f) => sum + f.size, 0) || 1;
     setUpload({ names: filesArr.map((f) => f.name), progress: 0 });
-    const handle = uploadWithProgress(`/api/upload?folderId=${folderId}`, form, (fraction) =>
-      setUpload((u) => (u ? { ...u, progress: fraction } : u))
-    );
-    uploadAbort.current = handle.abort;
-    handle.promise
-      .then(async (data) => {
-        const uploaded = (data as { files: FileInfo[] }).files || [];
+
+    let cancelled = false;
+    let abortCurrentBatch: (() => void) | null = null;
+    uploadAbort.current = () => {
+      cancelled = true;
+      abortCurrentBatch?.();
+    };
+
+    void (async () => {
+      let bytesDone = 0;
+      const allResults: FileInfo[] = [];
+      try {
+        for (const batch of batches) {
+          if (cancelled) break;
+          const batchBytes = batch.reduce((sum, f) => sum + f.size, 0);
+          const onBatchProgress = (fraction: number) => {
+            const done = bytesDone + fraction * batchBytes;
+            setUpload((u) => (u ? { ...u, progress: done / totalBytes } : u));
+          };
+          let handle;
+          if (batch.length === 1 && batch[0].size >= LARGE_FILE_THRESHOLD) {
+            handle = uploadLarge(`/api/upload/chunked?folderId=${folderId}`, batch[0], onBatchProgress);
+          } else {
+            const form = new FormData();
+            for (const f of batch) form.append('files', f, f.name);
+            handle = uploadWithProgress(`/api/upload?folderId=${folderId}`, form, onBatchProgress);
+          }
+          abortCurrentBatch = handle.abort;
+          const data = (await handle.promise) as { files: FileInfo[] };
+          allResults.push(...(data.files || []));
+          bytesDone += batchBytes;
+        }
         setUpload(null);
-        showToast(uploaded.length === 1 ? t('Файл загружен') : t('Загружено файлов: {n}', { n: uploaded.length }));
+        if (!cancelled) {
+          showToast(allResults.length === 1 ? t('Файл загружен') : t('Загружено файлов: {n}', { n: allResults.length }));
+        }
         await Promise.all([loadFiles(folderId), loadState()]);
-      })
-      .catch((e) => {
+      } catch (e) {
         setUpload(null);
         showToast(e instanceof Error ? t(e.message) : t('Не получилось загрузить.'));
         void loadFiles(folderId);
-      });
+      }
+    })();
   };
 
   // ---- folder operations (flat: create at top level; no move) ----

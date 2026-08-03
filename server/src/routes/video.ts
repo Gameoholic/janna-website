@@ -8,6 +8,7 @@ import { id, now, extOf } from '../util';
 import { probe, EditParams, Segment } from '../ffmpeg';
 import { startEditJob, getJob, getSession, EditJobRow, EditSessionRow } from '../jobs';
 import { registerFile, fileToJson, folderPath, FileRow, kindOf, fixUploadName } from './files';
+import { completeUpload } from '../chunkedUpload';
 import { log } from '../log';
 
 const ALLOWED_SPEEDS = [0.6, 0.7, 0.8, 0.9, 1];
@@ -87,6 +88,30 @@ videoRouter.post('/edit/sources', upload.single('file'), async (req, res) => {
     res.json({ session: sessionToJson(session) });
   } catch (e) {
     log.error('edit source upload failed', e);
+    res.status(500).json({ message: 'Не получилось открыть видео. Попробуйте ещё раз.' });
+  }
+});
+
+/** Finishes a chunked upload (see routes/uploads.ts) — videos too big for one request. */
+videoRouter.post('/edit/sources/chunked', async (req, res) => {
+  const uploadId = String(req.body?.uploadId || '');
+  let assembled: { path: string; name: string };
+  try {
+    assembled = completeUpload(uploadId);
+  } catch (e) {
+    res.status(400).json({ message: e instanceof Error ? e.message : 'Не получилось открыть видео.' });
+    return;
+  }
+  try {
+    const session = await createSession(assembled.path, assembled.name, null);
+    if (!session) {
+      fs.unlinkSync(assembled.path);
+      res.status(400).json({ message: 'Это не видео. Выберите видеофайл.' });
+      return;
+    }
+    res.json({ session: sessionToJson(session) });
+  } catch (e) {
+    log.error('chunked edit source upload failed', e);
     res.status(500).json({ message: 'Не получилось открыть видео. Попробуйте ещё раз.' });
   }
 });
