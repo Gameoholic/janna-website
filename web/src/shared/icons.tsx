@@ -95,6 +95,28 @@ export const IconExpand = ({ size }: IconProps) =>
   svg(<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />, size);
 export const IconCompress = ({ size }: IconProps) =>
   svg(<path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5" />, size);
+export const IconDoc = ({ size }: IconProps) =>
+  svg(<path d="M6 3h8l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zm8 0v5h5M8 11h8M8 15h8M8 19h5" />, size);
+export const IconBold = ({ size }: IconProps) =>
+  svg(
+    <path
+      d="M7 5h5.5a3.5 3.5 0 010 7H7V5zm0 7h6a3.5 3.5 0 010 7H7v-7z"
+      fill="currentColor"
+      stroke="none"
+    />,
+    size
+  );
+export const IconPalette = ({ size }: IconProps) =>
+  svg(
+    <g>
+      <path d="M12 3a9 9 0 100 18c1.4 0 2-.9 2-2 0-.6-.3-1-.6-1.4-.3-.4-.5-.7-.5-1.1 0-.8.7-1.5 1.5-1.5H16a4 4 0 004-4c0-4.4-3.6-8-8-8z" />
+      <circle cx="7.5" cy="11" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9.5" cy="7.2" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="14.5" cy="7.2" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="16.5" cy="11" r="1.2" fill="currentColor" stroke="none" />
+    </g>,
+    size
+  );
 export const IconMore = ({ size }: IconProps) =>
   svg(
     <g fill="currentColor" stroke="none">

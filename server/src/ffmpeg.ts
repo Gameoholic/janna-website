@@ -76,6 +76,19 @@ export async function makeImageThumb(input: string, output: string): Promise<voi
   if (code !== 0) throw new Error(`image thumbnail failed: ${stderr.slice(0, 500)}`);
 }
 
+/** Downscales + re-encodes an image as JPEG — used to keep imported/embedded document photos compact. Never upscales. */
+export async function resizeImageToJpeg(input: string, output: string, maxDim: number, quality: number): Promise<void> {
+  const { code, stderr } = await run(FFMPEG, [
+    '-y', '-loglevel', 'error',
+    '-i', input,
+    '-frames:v', '1',
+    '-vf', `scale='min(${maxDim},iw)':-2`,
+    '-q:v', String(quality),
+    output,
+  ]);
+  if (code !== 0) throw new Error(`image resize failed: ${stderr.slice(0, 500)}`);
+}
+
 export interface Segment {
   startMs: number;
   endMs: number;

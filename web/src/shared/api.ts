@@ -35,6 +35,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 export const api = {
   get: <T>(url: string) => request<T>('GET', url),
   post: <T>(url: string, body?: unknown) => request<T>('POST', url, body),
+  put: <T>(url: string, body?: unknown) => request<T>('PUT', url, body),
   patch: <T>(url: string, body?: unknown) => request<T>('PATCH', url, body),
   del: <T>(url: string) => request<T>('DELETE', url),
 };
@@ -180,7 +181,7 @@ export interface FileInfo {
   id: string;
   folderId: string | null;
   name: string;
-  kind: 'video' | 'image' | 'audio' | 'other';
+  kind: 'video' | 'image' | 'audio' | 'document' | 'other';
   mime: string;
   size: number;
   durationMs: number | null;
@@ -189,6 +190,7 @@ export interface FileInfo {
   hasThumb: boolean;
   origin: string;
   createdAt: number;
+  snippet: string | null;
 }
 
 export interface StorageState {

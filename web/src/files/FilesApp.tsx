@@ -14,6 +14,7 @@ import { Picker } from '../shared/Picker';
 import { MenuItem, useMenu } from '../shared/ContextMenu';
 import {
   IconCamera,
+  IconDoc,
   IconDownload,
   IconFile,
   IconFolder,
@@ -30,6 +31,7 @@ import {
 } from '../shared/icons';
 import { displayName, fmtDuration, fmtSize } from '../shared/russian';
 import { t } from '../shared/i18n';
+import { DocumentEditor } from './DocumentEditor';
 import { RenameDialog, ShareDialog, Viewer } from './Viewer';
 
 // Folders are a single flat level (no nesting for now — see master-prompt P4
@@ -59,6 +61,10 @@ export function FilesApp() {
   const [upload, setUpload] = useState<{ names: string[]; progress: number } | null>(null);
   const uploadAbort = useRef<(() => void) | null>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
+
+  // Phone: «Добавить» bundles «Загрузить файлы» + «Новый документ» behind one
+  // bottom-bar button so two actions don't crowd the same row (P6).
+  const [addOpen, setAddOpen] = useState(false);
 
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -230,6 +236,24 @@ export function FilesApp() {
     })();
   };
 
+  // Creates an empty note and opens it right away — she starts typing
+  // immediately, no naming step in the way (P2: result in front of her).
+  const createDocumentAndOpen = async () => {
+    if (currentId === null) return;
+    const folderId = currentId;
+    setBusy(true);
+    try {
+      const doc = await api.post<FileInfo>(`/api/folders/${folderId}/documents`);
+      setAddOpen(false);
+      setViewer(doc);
+      await Promise.all([loadFiles(folderId), loadState()]);
+    } catch (e) {
+      showToast(e instanceof Error ? t(e.message) : t('Не получилось создать документ.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ---- folder operations (flat: create at top level; no move) ----
 
   const createFolder = async () => {
@@ -384,7 +408,15 @@ export function FilesApp() {
   );
 
   const kindIcon = (file: FileInfo, size: number) =>
-    file.kind === 'video' ? <IconCamera size={size} /> : file.kind === 'audio' ? <IconNote size={size} /> : <IconFile size={size} />;
+    file.kind === 'video' ? (
+      <IconCamera size={size} />
+    ) : file.kind === 'audio' ? (
+      <IconNote size={size} />
+    ) : file.kind === 'document' ? (
+      <IconDoc size={size} />
+    ) : (
+      <IconFile size={size} />
+    );
 
   const fileCard = (file: FileInfo) => (
     <div
@@ -411,9 +443,22 @@ export function FilesApp() {
         </button>
       </div>
       <div className="file-name">{displayName(file.name)}</div>
-      <div className="muted small num">
-        {file.durationMs ? `${fmtDuration(file.durationMs)} · ` : ''}
-        {fmtSize(file.size)}
+      <div
+        className="muted small num"
+        style={
+          file.kind === 'document'
+            ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+            : undefined
+        }
+      >
+        {file.kind === 'document' ? (
+          file.snippet || t('Пустой документ')
+        ) : (
+          <>
+            {file.durationMs ? `${fmtDuration(file.durationMs)} · ` : ''}
+            {fmtSize(file.size)}
+          </>
+        )}
       </div>
     </div>
   );
@@ -459,7 +504,7 @@ export function FilesApp() {
   ) : files.length === 0 ? (
     <div className="card center" style={{ padding: 28 }}>
       <p style={{ marginTop: 0 }}>{t('Здесь пока пусто.')}</p>
-      <p className="muted">{t('Нажмите «Загрузить файлы», чтобы добавить сюда фото, видео или музыку.')}</p>
+      <p className="muted">{t('Нажмите «Загрузить файлы» или «Новый документ», чтобы что-то сюда добавить.')}</p>
     </div>
   ) : (
     <div className="file-grid">{files.map(fileCard)}</div>
@@ -585,8 +630,8 @@ export function FilesApp() {
         {!searchActive ? (
           <div className="bottombar">
             {currentId !== null ? (
-              <button className="btn btn-primary btn-big" onClick={() => uploadInput.current?.click()}>
-                <IconUpload size={24} /> {t('Загрузить файлы')}
+              <button className="btn btn-primary btn-big" onClick={() => setAddOpen(true)}>
+                <IconPlus size={24} /> {t('Добавить')}
               </button>
             ) : null}
             <button
@@ -631,6 +676,9 @@ export function FilesApp() {
                 <h2 className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {currentFolder?.name}
                 </h2>
+                <button className="btn" onClick={() => void createDocumentAndOpen()} disabled={busy}>
+                  <IconDoc size={22} /> {t('Новый документ')}
+                </button>
                 <button className="btn btn-primary" onClick={() => uploadInput.current?.click()}>
                   <IconUpload size={22} /> {t('Загрузить файлы')}
                 </button>
@@ -652,28 +700,67 @@ export function FilesApp() {
         {menu.menu}
 
         {viewer ? (
-          <Viewer
-            file={viewer}
-            folderPath={
-              viewer.folderId && byId.get(viewer.folderId)
-                ? [{ id: viewer.folderId, name: byId.get(viewer.folderId)!.name }]
-                : []
-            }
-            onClose={() => {
-              setViewer(null);
-              reload();
-            }}
-            onChanged={(updated) => {
-              if (updated) setViewer(updated);
-              reload();
-            }}
-            onDeleted={() => {
-              setViewer(null);
-              showToast(t('Файл удалён'));
-              reload();
-            }}
-          />
+          viewer.kind === 'document' ? (
+            <DocumentEditor
+              file={viewer}
+              onClose={() => {
+                setViewer(null);
+                reload();
+              }}
+              onChanged={(updated) => {
+                if (updated) setViewer(updated);
+                reload();
+              }}
+              onDeleted={() => {
+                setViewer(null);
+                showToast(t('Файл удалён'));
+                reload();
+              }}
+            />
+          ) : (
+            <Viewer
+              file={viewer}
+              folderPath={
+                viewer.folderId && byId.get(viewer.folderId)
+                  ? [{ id: viewer.folderId, name: byId.get(viewer.folderId)!.name }]
+                  : []
+              }
+              onClose={() => {
+                setViewer(null);
+                reload();
+              }}
+              onChanged={(updated) => {
+                if (updated) setViewer(updated);
+                reload();
+              }}
+              onDeleted={() => {
+                setViewer(null);
+                showToast(t('Файл удалён'));
+                reload();
+              }}
+            />
+          )
         ) : null}
+
+        <Dialog open={addOpen} title={t('Добавить')} onClose={busy ? undefined : () => setAddOpen(false)}>
+          <div className="stack">
+            <button
+              className="btn btn-primary btn-big btn-block"
+              onClick={() => {
+                setAddOpen(false);
+                uploadInput.current?.click();
+              }}
+            >
+              <IconUpload size={22} /> {t('Загрузить файлы')}
+            </button>
+            <button className="btn btn-big btn-block" onClick={() => void createDocumentAndOpen()} disabled={busy}>
+              <IconDoc size={22} /> {t('Новый документ')}
+            </button>
+            <button className="btn btn-ghost btn-block" onClick={() => setAddOpen(false)} disabled={busy}>
+              {t('Отмена')}
+            </button>
+          </div>
+        </Dialog>
 
         <Dialog open={newFolderOpen} title={t('Новая папка')} onClose={busy ? undefined : () => setNewFolderOpen(false)}>
           <input

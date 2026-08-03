@@ -169,6 +169,14 @@ export function DevApp() {
   const [deployJob, setDeployJob] = useState<DeployJob | null>(null);
   const pollRef = useRef<number | null>(null);
 
+  const [docFolders, setDocFolders] = useState<{ id: string; name: string }[]>([]);
+  const [docFolderId, setDocFolderId] = useState('');
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docName, setDocName] = useState('');
+  const [docImporting, setDocImporting] = useState(false);
+  const [docResult, setDocResult] = useState<{ fileName: string; warnings: string[] } | null>(null);
+  const docFileInput = useRef<HTMLInputElement>(null);
+
   const say = (text: string) => {
     setMessage(text);
     window.setTimeout(() => setMessage(''), 4000);
@@ -192,6 +200,9 @@ export function DevApp() {
       setCodes(codesRes.codes);
       const sharesRes = await api.get<{ shares: typeof shares }>('/api/admin/shares');
       setShares(sharesRes.shares);
+      const foldersRes = await api.get<{ folders: { id: string; name: string }[] }>('/api/admin/folders');
+      setDocFolders(foldersRes.folders);
+      setDocFolderId((prev) => prev || foldersRes.folders[0]?.id || '');
       await refreshDeployStatus();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setAuthorized(false);
@@ -234,6 +245,29 @@ export function DevApp() {
       pollDeployJob();
     } catch (e) {
       say(e instanceof Error ? e.message : 'Failed to start deploy.');
+    }
+  };
+
+  const runImport = async () => {
+    if (!docFile || !docFolderId) return;
+    setDocImporting(true);
+    setDocResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', docFile, docFile.name);
+      form.append('folderId', docFolderId);
+      if (docName.trim()) form.append('name', docName.trim());
+      const res = await fetch('/api/admin/documents/import', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Import failed.');
+      setDocResult({ fileName: data.file.name, warnings: data.warnings || [] });
+      setDocFile(null);
+      setDocName('');
+      if (docFileInput.current) docFileInput.current.value = '';
+    } catch (e) {
+      say(e instanceof Error ? e.message : 'Import failed.');
+    } finally {
+      setDocImporting(false);
     }
   };
 
@@ -287,6 +321,64 @@ export function DevApp() {
             English (testing){getLang() === 'en' ? ' ✓' : ''}
           </button>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2>Import a document (from Google Docs)</h2>
+        <p className="muted small">
+          In Google Docs: File → Download → "Web page (.html, zipped)" — this keeps bold,
+          colored text, and images. Plain .html / .txt / .md also work, with reduced
+          fidelity. Only bold, one text color, and images survive the import — headings,
+          lists, tables, links, and other formatting become plain paragraphs. This is a
+          one-time migration tool; she never sees it.
+        </p>
+        <div className="row-wrap" style={{ marginBottom: 10, gap: 10 }}>
+          <select
+            className="input"
+            style={{ maxWidth: 240, minHeight: 44 }}
+            value={docFolderId}
+            onChange={(e) => setDocFolderId(e.target.value)}
+          >
+            {docFolders.length === 0 ? <option value="">No folders yet</option> : null}
+            {docFolders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <input
+            ref={docFileInput}
+            type="file"
+            accept=".zip,.html,.htm,.txt,.md"
+            onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+          />
+          <input
+            className="input"
+            style={{ maxWidth: 220, minHeight: 44 }}
+            placeholder="Document name (optional)"
+            value={docName}
+            onChange={(e) => setDocName(e.target.value)}
+          />
+          <button
+            className="btn btn-compact btn-primary"
+            disabled={!docFile || !docFolderId || docImporting}
+            onClick={() => void runImport()}
+          >
+            {docImporting ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {docResult ? (
+          <div style={{ fontSize: 14 }}>
+            <p>✓ Created "{docResult.fileName}".</p>
+            {docResult.warnings.length > 0 ? (
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {docResult.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>

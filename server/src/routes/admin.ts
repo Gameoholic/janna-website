@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
+import multer from 'multer';
 import { db } from '../db';
 import { DATA_DIR, DIRS, UPDATER_TOKEN, UPDATER_URL } from '../config';
 import { COOKIE_DEVICE, cookieOptions, createSetupCode, provisionDevice } from '../auth';
@@ -9,6 +10,9 @@ import { tailLog, log } from '../log';
 import { getLeadTimes, setLeadTimes } from '../scheduler';
 import { sseClientCount, broadcast } from '../sse';
 import { originOf } from './share';
+import { createDocument, saveDocumentContent } from './documents';
+import { fileToJson } from './files';
+import { importDocumentFile } from '../documentImport';
 
 /** Filesystem-wide space on the volume backing DATA_DIR (the Pi's SD card/disk), not just her files. */
 function diskUsage(dir: string): { total: number; free: number; used: number } {
@@ -232,6 +236,45 @@ adminRouter.post('/trash/empty', (_req, res) => {
   }
   log.info(`trash emptied (${removed} entries)`);
   res.json({ ok: true, removed });
+});
+
+/**
+ * One-time migration of her old Google Docs (P11 — dev-only, English is
+ * fine). Export from Google Docs as File → Download → "Web page (.html,
+ * zipped)" to keep bold/colored text and images; plain .html/.txt/.md also
+ * work with reduced fidelity. Only bold, one text color, and images survive —
+ * everything else (headings, lists, tables, links) is flattened to plain
+ * paragraphs, by design (see documentImport.ts).
+ */
+adminRouter.get('/folders', (_req, res) => {
+  const rows = db.prepare('SELECT id, name FROM folders ORDER BY name COLLATE NOCASE').all() as { id: string; name: string }[];
+  res.json({ folders: rows });
+});
+
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+adminRouter.post('/documents/import', importUpload.single('file'), async (req, res) => {
+  const folderId = String(req.body?.folderId || '');
+  if (!folderId || !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)) {
+    res.status(400).json({ message: 'Choose a valid folder.' });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ message: 'No file uploaded.' });
+    return;
+  }
+  try {
+    const result = await importDocumentFile({ buffer: req.file.buffer, originalName: req.file.originalname });
+    const requestedName = String(req.body?.name || '').trim();
+    const fallbackName = path.basename(req.file.originalname, path.extname(req.file.originalname));
+    const row = createDocument(folderId, requestedName || fallbackName || 'Imported document');
+    const updated = saveDocumentContent(row, result.html);
+    log.info(`document imported: ${updated.name} (${result.warnings.length} warning(s))`);
+    res.json({ file: fileToJson(updated), warnings: result.warnings });
+  } catch (e) {
+    log.error('document import failed', e);
+    res.status(500).json({ message: e instanceof Error ? e.message : 'Import failed.' });
+  }
 });
 
 /**

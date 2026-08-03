@@ -141,8 +141,8 @@ export const EN: Record<string, string> = {
   'Очистить': 'Clear',
   'Ничего не нашлось. Попробуйте написать по-другому.': 'Nothing found. Try spelling it differently.',
   'Здесь пока пусто.': 'Empty here so far.',
-  'Нажмите «Загрузить файлы», чтобы добавить сюда фото, видео или музыку.':
-    'Press “Upload files” to add photos, videos or music here.',
+  'Нажмите «Загрузить файлы» или «Новый документ», чтобы что-то сюда добавить.':
+    'Press “Upload files” or “New document” to add something here.',
   'Загружаем файл…': 'Uploading file…',
   'Загружаем файлы ({n})…': 'Uploading files ({n})…',
   'Поиск': 'Search',
@@ -179,6 +179,20 @@ export const EN: Record<string, string> = {
   'Удалить файл?': 'Delete file?',
   '«{name}» будет удалён.': '“{name}” will be deleted.',
   'Переименовать файл': 'Rename file',
+
+  // ---- files: documents (simple notes) ----
+  'Добавить': 'Add',
+  'Новый документ': 'New document',
+  'Пустой документ': 'Empty document',
+  'Не получилось создать документ.': 'Could not create the document.',
+  'Жирный': 'Bold',
+  'Цвет': 'Color',
+  'Фото': 'Photo',
+  'Выберите цвет текста': 'Choose text color',
+  'Сначала выделите текст пальцем, затем выберите цвет.': 'First select some text with your finger, then choose a color.',
+  'Не получилось добавить фото.': 'Could not add the photo.',
+  'Сохраняем…': 'Saving…',
+  'Сохранено': 'Saved',
   'Постоянная ссылка на этот файл. Отправьте её в WhatsApp — человек увидит только этот один файл.':
     'A permanent link to this file. Send it in WhatsApp — the person will see only this one file.',
   'Скопировать ссылку': 'Copy link',

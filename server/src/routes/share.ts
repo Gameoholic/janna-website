@@ -4,6 +4,24 @@ import { db } from '../db';
 import { PUBLIC_ORIGIN } from '../config';
 import { token, now } from '../util';
 import { FileRow } from './files';
+import { sanitizeDocumentHtml } from './documents';
+
+/** First embedded base64 image in a document's HTML, if any — used as the og:image preview. */
+const EMBEDDED_IMAGE = /<img[^>]+src="data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)"/;
+
+function documentEmbeddedImage(html: string): { mime: string; buffer: Buffer } | null {
+  const m = EMBEDDED_IMAGE.exec(html);
+  if (!m) return null;
+  return { mime: m[1], buffer: Buffer.from(m[2], 'base64') };
+}
+
+function readDocumentHtml(file: FileRow): string {
+  try {
+    return sanitizeDocumentHtml(fs.readFileSync(file.path, 'utf8'));
+  } catch {
+    return '';
+  }
+}
 
 /**
  * Permanent, isolated, per-file links (Section 7). A token maps to exactly
@@ -76,8 +94,11 @@ sharePublicRouter.get('/s/:token', (req, res) => {
   }
   const base = `${originOf(req)}/s/${esc(req.params.token)}`;
   const name = esc(file.name);
+  const isDoc = file.kind === 'document';
+  const docHtml = isDoc ? readDocumentHtml(file) : '';
   const hasThumb = !!file.thumb_path && fs.existsSync(file.thumb_path);
-  const ogImage = hasThumb ? `${base}/thumb` : '';
+  const hasDocImage = isDoc && !!documentEmbeddedImage(docHtml);
+  const ogImage = hasThumb || hasDocImage ? `${base}/thumb` : '';
 
   let media = '';
   if (file.kind === 'video') {
@@ -86,11 +107,16 @@ sharePublicRouter.get('/s/:token', (req, res) => {
     media = `<img src="${base}/media" alt="${name}">`;
   } else if (file.kind === 'audio') {
     media = `<div class="audio-wrap"><div class="audio-icon">♫</div><audio controls preload="metadata" src="${base}/media"></audio></div>`;
+  } else if (isDoc) {
+    // Already sanitized on save (and again here, defensively, since this is
+    // a public page) — a narrow bold/color/image allowlist, never arbitrary
+    // markup (see routes/documents.ts).
+    media = `<div class="doc-content">${docHtml || '<span style="color:#9ca3af">(пусто)</span>'}</div>`;
   } else {
     media = `<div class="audio-wrap"><div class="audio-icon">📄</div></div>`;
   }
 
-  const ogType = file.kind === 'video' ? 'video.other' : file.kind === 'audio' ? 'music.song' : 'website';
+  const ogType = file.kind === 'video' ? 'video.other' : file.kind === 'audio' ? 'music.song' : isDoc ? 'article' : 'website';
   // WhatsApp shows thumbnail + title from these tags; tapping opens this
   // clean player. True in-bubble playback is not possible for a custom
   // domain — an honest platform limit (Section 7).
@@ -108,13 +134,15 @@ ${file.kind === 'video' ? `<meta property="og:video" content="${base}/media">\n<
 <meta name="twitter:title" content="${name}">
 <style>
   html,body{margin:0;min-height:100%}
-  body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#111827;color:#f9fafb;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;min-height:100vh}
+  body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:${isDoc ? '#efe9da' : '#111827'};color:${isDoc ? '#1f2937' : '#f9fafb'};display:flex;flex-direction:column;align-items:center;justify-content:${isDoc ? 'flex-start' : 'center'};padding:16px;box-sizing:border-box;min-height:100vh}
   .card{width:100%;max-width:900px;text-align:center}
   video,img{max-width:100%;max-height:78vh;border-radius:12px;background:#000;display:block;margin:0 auto}
   audio{width:100%;max-width:480px;margin-top:16px}
   h1{font-size:20px;font-weight:600;margin:16px 8px;word-break:break-word}
   .audio-wrap{padding:32px 16px}
   .audio-icon{font-size:72px;line-height:1}
+  .doc-content{background:#fff;color:#1f2937;text-align:left;padding:20px;border-radius:12px;line-height:1.5;font-size:17px;word-break:break-word;box-shadow:0 3px 14px rgba(29,36,48,0.18)}
+  .doc-content img{max-width:100%;border-radius:8px;display:block;margin:8px 0}
   a.dl{display:inline-block;margin-top:12px;padding:14px 28px;background:#2563eb;color:#fff;text-decoration:none;border-radius:12px;font-size:18px}
 </style>
 </head><body>
@@ -134,7 +162,8 @@ function streamShared(req: Request, res: Response, download: boolean): void {
     return;
   }
   if (download) {
-    res.download(file.path, file.name);
+    const downloadName = file.kind === 'document' && !file.name.toLowerCase().endsWith('.html') ? `${file.name}.html` : file.name;
+    res.download(file.path, downloadName);
   } else {
     res.sendFile(file.path, {
       headers: { 'Content-Type': file.mime, 'Cache-Control': 'public, max-age=3600' },
@@ -148,9 +177,20 @@ sharePublicRouter.get('/s/:token/download', (req, res) => streamShared(req, res,
 
 sharePublicRouter.get('/s/:token/thumb', (req, res) => {
   const file = fileForToken(req.params.token);
-  if (!file || !file.thumb_path || !fs.existsSync(file.thumb_path)) {
+  if (!file) {
     res.status(404).end();
     return;
   }
-  res.sendFile(file.thumb_path, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+  if (file.thumb_path && fs.existsSync(file.thumb_path)) {
+    res.sendFile(file.thumb_path, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+    return;
+  }
+  if (file.kind === 'document') {
+    const embedded = documentEmbeddedImage(readDocumentHtml(file));
+    if (embedded) {
+      res.type(embedded.mime).set('Cache-Control', 'public, max-age=86400').send(embedded.buffer);
+      return;
+    }
+  }
+  res.status(404).end();
 });

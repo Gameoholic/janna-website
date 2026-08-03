@@ -9,6 +9,7 @@ import { initPush, vapidPublicKey, saveSubscription } from './push';
 import { addSseClient } from './sse';
 import { startScheduler } from './scheduler';
 import { filesRouter } from './routes/files';
+import { documentsRouter } from './routes/documents';
 import { uploadsRouter } from './routes/uploads';
 import { shareApiRouter, sharePublicRouter } from './routes/share';
 import { videoRouter } from './routes/video';
@@ -26,6 +27,11 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true); // behind the Cloudflare Tunnel
 app.use(cookieParser());
+// Documents can carry a few embedded (base64) photos and comfortably exceed
+// the 2mb general limit below — give that one path more headroom before the
+// blanket limit applies. body-parser skips re-parsing a body it already
+// consumed, so this narrowly-scoped parser doesn't loosen anything else.
+app.use('/api/documents', express.json({ limit: '20mb' }));
 app.use(express.json({ limit: '2mb' }));
 
 // ---- Public surface: share pages + provisioning + hidden dev entry ----
@@ -51,6 +57,7 @@ api.post('/push/subscribe', (req, res) => {
   res.json({ ok: true });
 });
 api.use(filesRouter);
+api.use(documentsRouter);
 api.use(uploadsRouter);
 api.use(shareApiRouter);
 api.use(videoRouter);

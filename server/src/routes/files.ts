@@ -20,7 +20,7 @@ export interface FileRow {
   id: string;
   folder_id: string | null;
   name: string;
-  kind: 'video' | 'image' | 'audio' | 'other';
+  kind: 'video' | 'image' | 'audio' | 'document' | 'other';
   mime: string;
   size: number;
   path: string;
@@ -30,6 +30,7 @@ export interface FileRow {
   height: number | null;
   origin: string;
   created_at: number;
+  snippet: string | null;
 }
 
 const EXT_KINDS: Record<string, { kind: FileRow['kind']; mime: string }> = {
@@ -140,7 +141,7 @@ export async function registerFile(opts: {
   return db.prepare('SELECT * FROM files WHERE id = ?').get(fileId) as FileRow;
 }
 
-function uniqueNameInFolder(name: string, folderId: string | null): string {
+export function uniqueNameInFolder(name: string, folderId: string | null): string {
   const exists = (n: string) =>
     !!db
       .prepare(`SELECT 1 FROM files WHERE name = ? AND folder_id ${folderId ? '= ?' : 'IS NULL'}`)
@@ -191,6 +192,7 @@ export function fileToJson(row: FileRow) {
     hasThumb: !!row.thumb_path,
     origin: row.origin,
     createdAt: row.created_at,
+    snippet: row.snippet,
   };
 }
 
@@ -421,7 +423,10 @@ function streamStoredFile(req: Request, res: Response, download: boolean): void 
     return;
   }
   if (download) {
-    res.download(row.path, row.name);
+    // Her display name for a document has no extension (it's a note title,
+    // not a filename) — but a downloaded file needs one to open correctly.
+    const downloadName = row.kind === 'document' && extOf(row.name) !== '.html' ? `${row.name}.html` : row.name;
+    res.download(row.path, downloadName);
   } else {
     res.sendFile(row.path, {
       headers: { 'Content-Type': row.mime, 'Cache-Control': 'private, max-age=3600' },

@@ -46,7 +46,7 @@ const MIGRATIONS: string[] = [
     duration_ms INTEGER,
     width INTEGER,
     height INTEGER,
-    origin TEXT NOT NULL DEFAULT 'upload',  -- upload | edited
+    origin TEXT NOT NULL DEFAULT 'upload',  -- upload | edited | created
     created_at INTEGER NOT NULL
   );
   CREATE INDEX idx_files_folder ON files(folder_id);
@@ -106,6 +106,11 @@ const MIGRATIONS: string[] = [
   // now-unused column.
   `
   ALTER TABLE reminders DROP COLUMN dismissed_at;
+  `,
+  // Simple documents/notes (kind = 'document') get a cached plain-text
+  // preview for the file grid — see routes/documents.ts.
+  `
+  ALTER TABLE files ADD COLUMN snippet TEXT;
   `,
 ];
 
