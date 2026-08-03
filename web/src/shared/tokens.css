@@ -581,6 +581,15 @@ h2 { font-size: 21px; }
   display: block;
   margin: 8px 0;
   border-radius: 8px;
+  /* A tap that turns into an accidental drag of a data-URI image can dump the
+     raw base64 into the text as a fallback (real browser behaviour, not a
+     data-URI-specific bug we introduced) — and Chrome's native "select the
+     image, show resize handles" state invites exactly the fiddly resize/move
+     gestures she shouldn't need. Neither is supported, so neither is possible:
+     a tap here does nothing at all, it just falls through to the text. */
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
 }
 .doc-body b, .doc-body strong { font-weight: 700; }
 

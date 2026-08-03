@@ -321,6 +321,7 @@ export function DocumentEditor(props: {
         onPaste={handlePaste}
         onMouseUp={updateBoldState}
         onKeyUp={updateBoldState}
+        onDragStart={(e) => e.preventDefault()}
       />
 
       <div className="row-wrap" style={{ padding: '8px 10px 10px', borderTop: '1px solid var(--line)', gap: 8, justifyContent: 'center' }}>
