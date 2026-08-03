@@ -84,12 +84,28 @@ interface InitUploadResponse {
   totalChunks: number;
 }
 
-function sendChunk(url: string, blob: Blob, onLoaded: (loaded: number) => void): { promise: Promise<void>; xhr: XMLHttpRequest } {
+// A slow-but-moving chunk (big file, weak upload link) can legitimately take
+// minutes — that's fine. What isn't fine is a connection that goes silent
+// and never calls onload/onerror at all, which XHR has no built-in timeout
+// for. STALL_MS is "no progress at all for this long", not an overall cap.
+const STALL_MS = 30_000;
+const MAX_CHUNK_ATTEMPTS = 5;
+
+function sendChunkOnce(url: string, blob: Blob, onLoaded: (loaded: number) => void): { promise: Promise<void>; xhr: XMLHttpRequest } {
   const xhr = new XMLHttpRequest();
+  let lastProgressAt = Date.now();
+  let stalled = false;
+  const watchdog = window.setInterval(() => {
+    if (Date.now() - lastProgressAt > STALL_MS) {
+      stalled = true;
+      xhr.abort();
+    }
+  }, 5000);
   const promise = new Promise<void>((resolve, reject) => {
     xhr.open('POST', url);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.upload.onprogress = (e) => {
+      lastProgressAt = Date.now();
       if (e.lengthComputable) onLoaded(e.loaded);
     };
     xhr.onload = () => {
@@ -97,16 +113,23 @@ function sendChunk(url: string, blob: Blob, onLoaded: (loaded: number) => void):
       else reject(new ApiError(xhr.status, GENERIC_MESSAGE));
     };
     xhr.onerror = () => reject(new ApiError(0, NETWORK_MESSAGE));
-    xhr.onabort = () => reject(new ApiError(0, 'Загрузка отменена.'));
+    // Same status-0 "connectivity problem" shape whether XHR errored on its
+    // own or the watchdog above pulled the plug on a stalled connection.
+    xhr.onabort = () => reject(new ApiError(0, stalled ? NETWORK_MESSAGE : 'Загрузка отменена.'));
     xhr.send(blob);
-  });
+  }).finally(() => window.clearInterval(watchdog));
   return { promise, xhr };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 /**
  * Uploads a file too large for one request in chunks, then calls completeUrl
  * with { uploadId } to reassemble + register it — completeUrl's response is
- * returned as-is, matching what the direct multipart endpoints return.
+ * returned as-is, matching what the direct multipart endpoints return. Each
+ * chunk retries a few times on a stall or network blip before giving up.
  */
 export function uploadLarge(completeUrl: string, file: File, onProgress: (fraction: number) => void): UploadHandle {
   let aborted = false;
@@ -114,14 +137,24 @@ export function uploadLarge(completeUrl: string, file: File, onProgress: (fracti
   const promise = (async () => {
     const init = await request<InitUploadResponse>('POST', '/api/uploads/init', { name: file.name, size: file.size });
     for (let i = 0; i < init.totalChunks; i++) {
-      if (aborted) throw new ApiError(0, 'Загрузка отменена.');
       const start = i * init.chunkSize;
       const blob = file.slice(start, Math.min(start + init.chunkSize, file.size));
-      const { promise: chunkPromise, xhr } = sendChunk(`/api/uploads/${init.uploadId}/chunk/${i}`, blob, (loaded) =>
-        onProgress((start + loaded) / file.size)
-      );
-      currentXhr = xhr;
-      await chunkPromise;
+      for (let attempt = 1; ; attempt++) {
+        if (aborted) throw new ApiError(0, 'Загрузка отменена.');
+        const { promise: chunkPromise, xhr } = sendChunkOnce(`/api/uploads/${init.uploadId}/chunk/${i}`, blob, (loaded) =>
+          onProgress((start + loaded) / file.size)
+        );
+        currentXhr = xhr;
+        try {
+          await chunkPromise;
+          break;
+        } catch (e) {
+          if (aborted) throw new ApiError(0, 'Загрузка отменена.');
+          const retryable = e instanceof ApiError && e.status === 0 && e.message !== 'Загрузка отменена.';
+          if (!retryable || attempt >= MAX_CHUNK_ATTEMPTS) throw e;
+          await sleep(Math.min(2000 * attempt, 8000));
+        }
+      }
     }
     currentXhr = null;
     return request('POST', completeUrl, { uploadId: init.uploadId });
