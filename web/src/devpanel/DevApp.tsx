@@ -40,6 +40,75 @@ interface DeployJob {
   finishedAt: number | null;
 }
 
+type DeployPhase = 'starting' | 'pulling' | 'installing' | 'compiling' | 'building' | 'packaging' | 'restarting';
+
+/** Best-effort guess at what step the deploy is on, from the raw log text — there's no real progress % to report, so this is vibes, not a promise. */
+function deployPhase(log: string): DeployPhase {
+  if (!log.includes('$ git pull')) return 'starting';
+  if (!log.includes('$ docker compose')) return 'pulling';
+  if (/Recreate|Creat(e|ing)\.\.\.|Started|Running/i.test(log)) return 'restarting';
+  if (/exporting to image|unpacking to|naming to docker/i.test(log)) return 'packaging';
+  if (/vite.*building for production|transforming\.\.\.|rendering chunks|tsc\b/i.test(log)) return 'compiling';
+  if (/npm ci|npm warn|added \d+ package/i.test(log)) return 'installing';
+  return 'building';
+}
+
+const PHASE_LABEL: Record<DeployPhase, string> = {
+  starting: 'Waking up…',
+  pulling: 'Pulling changes',
+  installing: 'Installing dependencies',
+  compiling: 'Compiling & bundling',
+  building: 'Building image',
+  packaging: 'Packaging image',
+  restarting: 'Restarting app',
+};
+
+const PHASE_ETA: Record<DeployPhase, string> = {
+  starting: 'usually instant',
+  pulling: 'usually a few seconds',
+  installing: 'usually 1–3 min — longer the first time, or after a dependency change',
+  compiling: 'usually 10–30s',
+  building: 'usually 1–4 min total, depending on Docker layer cache',
+  packaging: 'usually 10–20s',
+  restarting: 'usually a few seconds',
+};
+
+const QUIPS: Record<DeployPhase, string[]> = {
+  starting: ['Waking up the deploy-bot…', 'Summoning the updater sidecar…', 'Cracking knuckles. Metaphorically.'],
+  pulling: [
+    'Yanking the latest commits off GitHub…',
+    'Asking git very nicely for your changes…',
+    'Fast-forwarding through history…',
+    'Downloading bits. So many bits.',
+  ],
+  installing: [
+    'Compiling native modules on a Raspberry Pi. Bless its little ARM cores.',
+    "This is usually the slow part — the Pi is trying its best.",
+    'npm install is happening. Somewhere, a fan spins up.',
+    'Building sqlite bindings by hand, like a tiny artisanal bakery.',
+  ],
+  compiling: [
+    'TypeScript is silently judging your code.',
+    'Bundling the web app into tidy little chunks.',
+    'Vite doing Vite things (fast, allegedly).',
+  ],
+  building: ['Docker is doing Docker things…', 'Stacking layers like a filesystem lasagna.', 'Still working. Promise.'],
+  packaging: ['Wrapping everything up in a nice Docker bow…', 'Squishing layers into an image…', 'Almost a real container now.'],
+  restarting: [
+    'Swapping the old container for the shiny new one…',
+    'Kicking the app awake again…',
+    'Briefly performing a container transplant.',
+  ],
+};
+
+const DONE_QUIPS = ["That wasn't so bad.", 'Ship it. Oh wait, already did.', 'Back online, none the wiser.'];
+const ERROR_QUIPS = ["Well, that's disappointing.", 'The log below has the gory details.', "Don't panic — nothing pulled the trigger on data."];
+
+function fmtElapsed(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
 function fmtBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -231,14 +300,42 @@ export function DevApp() {
             </div>
             {deployJob && deployJob.status !== 'idle' ? (
               <div style={{ marginTop: 14 }}>
-                <div className="row" style={{ marginBottom: 8 }}>
-                  {deployJob.status === 'running' ? (
-                    <div className="spinner" style={{ width: 22, height: 22, borderWidth: 3, marginRight: 10 }} />
-                  ) : null}
-                  <b>
-                    {deployJob.status === 'running' ? 'Deploying…' : deployJob.status === 'done' ? '✓ Deployed' : '✗ Failed'}
-                  </b>
-                </div>
+                {(() => {
+                  const elapsedSec = deployJob.startedAt
+                    ? Math.max(0, Math.round(((deployJob.finishedAt ?? Date.now()) - deployJob.startedAt) / 1000))
+                    : 0;
+                  if (deployJob.status === 'running') {
+                    const phase = deployPhase(deployJob.log);
+                    const quips = QUIPS[phase];
+                    const quip = quips[Math.floor(elapsedSec / 4) % quips.length];
+                    return (
+                      <>
+                        <div className="row" style={{ marginBottom: 4 }}>
+                          <div className="spinner" style={{ width: 22, height: 22, borderWidth: 3, marginRight: 10 }} />
+                          <b>{PHASE_LABEL[phase]}</b>
+                          <span className="muted small" style={{ marginLeft: 10 }}>
+                            {fmtElapsed(elapsedSec)} elapsed · {PHASE_ETA[phase]}
+                          </span>
+                        </div>
+                        <p className="muted small" style={{ fontStyle: 'italic', margin: '0 0 8px' }}>
+                          {quip}
+                        </p>
+                      </>
+                    );
+                  }
+                  const quips = deployJob.status === 'done' ? DONE_QUIPS : ERROR_QUIPS;
+                  const quip = quips[Math.floor(elapsedSec / 4) % quips.length];
+                  return (
+                    <div style={{ marginBottom: 8 }}>
+                      <b style={deployJob.status === 'error' ? { color: 'var(--danger)' } : undefined}>
+                        {deployJob.status === 'done' ? `✓ Deployed in ${fmtElapsed(elapsedSec)}` : '✗ Failed'}
+                      </b>
+                      <span className="muted small" style={{ marginLeft: 10, fontStyle: 'italic' }}>
+                        {quip}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <pre
                   style={{
                     fontSize: 12,
