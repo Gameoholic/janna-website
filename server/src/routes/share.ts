@@ -83,7 +83,7 @@ function esc(text: string): string {
 const NOT_FOUND_PAGE = `<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>Ссылка не работает</title>
-<style>body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#faf7f2;color:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}h1{font-size:26px}</style>
+<style>html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#faf7f2;color:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}h1{font-size:26px}</style>
 </head><body><div><h1>Эта ссылка больше не работает</h1><p style="font-size:19px">Файл был удалён, или ссылка устарела.</p></div></body></html>`;
 
 sharePublicRouter.get('/s/:token', (req, res) => {
@@ -133,6 +133,7 @@ ${ogImage ? `<meta property="og:image" content="${ogImage}">\n<meta name="twitte
 ${file.kind === 'video' ? `<meta property="og:video" content="${base}/media">\n<meta property="og:video:type" content="${esc(file.mime)}">` : ''}
 <meta name="twitter:title" content="${name}">
 <style>
+  html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
   html,body{margin:0;min-height:100%}
   body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:${isDoc ? '#efe9da' : '#111827'};color:${isDoc ? '#1f2937' : '#f9fafb'};display:flex;flex-direction:column;align-items:center;justify-content:${isDoc ? 'flex-start' : 'center'};padding:16px;box-sizing:border-box;min-height:100vh}
   .card{width:100%;max-width:900px;text-align:center}

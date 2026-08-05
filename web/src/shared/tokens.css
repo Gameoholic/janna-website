@@ -32,6 +32,17 @@ body.app-reminders { --accent: #C6373C; --accent-rgb: 198, 55, 60; --accent-soft
 
 html, body { margin: 0; padding: 0; min-height: 100%; }
 
+/* Mobile Firefox (and some mobile Chrome builds) silently inflate text size
+   on pages it heuristically judges to be "desktop content" — every px value
+   in this file is then rendered far larger than written, breaking layout
+   (buttons/wraps overflow) without changing anything on desktop, where this
+   inflation never triggers. Opting out locks rendering to our actual sizes. */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 19px;
