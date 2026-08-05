@@ -1,5 +1,6 @@
 import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
-import { IconCompress, IconExpand, IconNote, IconPause, IconPlay } from './icons';
+import { IconCheck, IconCompress, IconExpand, IconNote, IconPause, IconPlay } from './icons';
+import { MenuItem, useMenu } from './ContextMenu';
 import { fmtDuration } from './russian';
 import { t } from './i18n';
 
@@ -27,7 +28,7 @@ function currentFullscreenElement(): Element | null {
 // View-only playback speed (like VLC) — never touches the file itself, just
 // how fast this one playback session plays it. Independent from the video
 // editor's 0.6–0.9 pitch-preserved export speed (8A), which bakes a new file.
-const PLAYBACK_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const PLAYBACK_SPEEDS = [0.5, 0.6, 0.7, 0.9, 1];
 
 /**
  * Plain playback with our own always-visible controls (P12, shared): native
@@ -62,6 +63,7 @@ export function VideoPlayer(props: {
   const [fullscreen, setFullscreen] = useState(false);
   const [fsSupported] = useState(isFullscreenSupported);
   const [rate, setRate] = useState(1);
+  const speedMenu = useMenu();
 
   // A freshly opened file always starts at normal speed — she shouldn't have
   // to remember that the last file she watched was left at 1.5× (P2).
@@ -80,10 +82,11 @@ export function VideoPlayer(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rate, props.src]);
 
-  const cycleSpeed = () => {
-    const idx = PLAYBACK_SPEEDS.indexOf(rate);
-    setRate(PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length]);
-  };
+  const speedMenuItems: MenuItem[] = PLAYBACK_SPEEDS.map((s) => ({
+    label: `${s.toFixed(1)}×`,
+    icon: rate === s ? <IconCheck size={20} /> : undefined,
+    onClick: () => setRate(s),
+  }));
 
   useEffect(() => {
     const onChange = () => setFullscreen(currentFullscreenElement() === containerRef.current);
@@ -246,8 +249,12 @@ export function VideoPlayer(props: {
         <div className="video-overlay-time num">
           {fmtDuration(started ? positionMs : 0)} / {fmtDuration(durationMs)}
         </div>
-        <button className="video-overlay-speed num" onClick={cycleSpeed} aria-label={t('Скорость просмотра')}>
-          {rate}×
+        <button
+          className="video-overlay-speed num"
+          onClick={(e) => speedMenu.openFromButton(e, speedMenuItems)}
+          aria-label={t('Скорость просмотра')}
+        >
+          {rate.toFixed(1)}×
         </button>
         {fsSupported ? (
           <button
@@ -259,6 +266,7 @@ export function VideoPlayer(props: {
           </button>
         ) : null}
       </div>
+      {speedMenu.menu}
     </div>
   );
 }
