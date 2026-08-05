@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Мой Диск",
+  "short_name": "Мой Диск",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#E9E3D2",
+  "theme_color": "#E9E3D2",
+  "icons": [
+    { "src": "/icons/files-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/files-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/files-mask-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/files-mask-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
