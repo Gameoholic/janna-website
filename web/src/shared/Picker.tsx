@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, FileInfo, FolderInfo } from './api';
-import { ConfirmDialog, Dialog, showToast } from './ui';
+import { Dialog, showToast } from './ui';
 import { IconBack, IconCamera, IconCheck, IconChevron, IconFolder, IconPlus } from './icons';
 import { displayName, fmtDuration } from './russian';
 import { t } from './i18n';
@@ -23,8 +23,6 @@ interface BaseProps {
 interface FolderModeProps extends BaseProps {
   mode: 'folder';
   confirmLabel: (folderName: string) => string;
-  /** When set, an extra confirmation dialog appears (used for «Переместить»). */
-  confirmQuestion?: (folderName: string) => string;
   /** Move dialogs pick an existing destination only — no «Новая папка» there. */
   allowCreateFolder?: boolean;
   onPickFolder: (folderId: string | null, folderName: string) => void;
@@ -47,7 +45,6 @@ export function Picker(props: PickerProps) {
   const [loading, setLoading] = useState(true);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const byId = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
   const selectedFolder = selectedId ? byId.get(selectedId) || null : null;
@@ -66,7 +63,6 @@ export function Picker(props: PickerProps) {
     if (!props.open) return;
     setSelectedId(null);
     setOpenFolderId(null);
-    setConfirmOpen(false);
     setLoading(true);
     void loadFolders().then(() => setLoading(false));
   }, [props.open]);
@@ -107,8 +103,7 @@ export function Picker(props: PickerProps) {
 
   const confirmPick = () => {
     if (props.mode !== 'folder' || !selectedFolder) return;
-    if (props.confirmQuestion) setConfirmOpen(true);
-    else props.onPickFolder(selectedFolder.id, selectedFolder.name);
+    props.onPickFolder(selectedFolder.id, selectedFolder.name);
   };
 
   const browsingVideos = props.mode === 'video' && openFolderId !== null;
@@ -180,7 +175,11 @@ export function Picker(props: PickerProps) {
               <button
                 key={folder.id}
                 className="list-row"
-                style={props.mode === 'folder' && selectedId === folder.id ? { background: 'var(--accent-soft)' } : undefined}
+                style={
+                  props.mode === 'folder' && selectedId === folder.id
+                    ? { background: 'var(--accent-soft)', boxShadow: 'inset 0 0 0 3px var(--accent)' }
+                    : undefined
+                }
                 onClick={() => (props.mode === 'video' ? setOpenFolderId(folder.id) : setSelectedId(folder.id))}
               >
                 <IconFolder size={26} />
@@ -240,17 +239,6 @@ export function Picker(props: PickerProps) {
           </button>
         </div>
       </Dialog>
-
-      {props.mode === 'folder' && props.confirmQuestion ? (
-        <ConfirmDialog
-          open={confirmOpen}
-          title={selectedFolder ? props.confirmQuestion(selectedFolder.name) : ''}
-          confirmLabel={selectedFolder ? props.confirmLabel(selectedFolder.name) : ''}
-          busy={props.busy}
-          onConfirm={() => selectedFolder && props.onPickFolder(selectedFolder.id, selectedFolder.name)}
-          onCancel={() => setConfirmOpen(false)}
-        />
-      ) : null}
     </Dialog>
   );
 }

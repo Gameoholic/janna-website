@@ -183,7 +183,6 @@ export function Viewer(props: {
         title={t('Куда переместить файл?')}
         busy={busy}
         confirmLabel={(name) => t('Переместить в «{name}»', { name })}
-        confirmQuestion={(name) => t('Переместить файл в «{name}»?', { name })}
         allowCreateFolder={false}
         onClose={() => setMoveOpen(false)}
         onPickFolder={(folderId, folderName) => void doMove(folderId, folderName)}

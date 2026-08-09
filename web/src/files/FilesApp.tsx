@@ -837,7 +837,6 @@ export function FilesApp() {
             title={t('Куда переместить файл?')}
             busy={busy}
             confirmLabel={(name) => t('Переместить в «{name}»', { name })}
-            confirmQuestion={(name) => t('Переместить файл в «{name}»?', { name })}
             allowCreateFolder={false}
             onClose={() => setMoveFileTarget(null)}
             onPickFolder={(folderId) => void doMoveFile(folderId)}
