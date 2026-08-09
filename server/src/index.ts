@@ -8,6 +8,7 @@ import { ensureAdminSecret, deviceAuth, adminAuth } from './auth';
 import { initPush, vapidPublicKey, saveSubscription } from './push';
 import { addSseClient } from './sse';
 import { startScheduler } from './scheduler';
+import { startMetrics } from './metrics';
 import { filesRouter } from './routes/files';
 import { documentsRouter } from './routes/documents';
 import { uploadsRouter } from './routes/uploads';
@@ -106,6 +107,7 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 });
 
 startScheduler();
+startMetrics();
 // Catches up any video uploaded before this feature existed — background,
 // sequential, never blocks server startup.
 void backfillPlaybackProxies().catch((e) => log.error('playback proxy backfill crashed', e));

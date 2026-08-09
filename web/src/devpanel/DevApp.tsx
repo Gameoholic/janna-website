@@ -3,6 +3,7 @@ import '../shared/tokens.css';
 import { api, ApiError } from '../shared/api';
 import { copyText } from '../shared/ui';
 import { getLang, setLang } from '../shared/i18n';
+import { PiHealth } from './PiHealth';
 
 /**
  * Hidden maintenance panel (P11). Reached only via /dev?key=SECRET (printed
@@ -534,6 +535,8 @@ export function DevApp() {
           </div>
         </div>
       ) : null}
+
+      <PiHealth />
 
       <div className="card" style={{ marginBottom: 18 }}>
         <h2>Devices</h2>

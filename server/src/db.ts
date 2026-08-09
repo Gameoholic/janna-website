@@ -126,6 +126,16 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // Pi health monitoring (dev panel, admin-only) — one sample per minute,
+  // kept forever (tiny at this resolution).
+  `
+  CREATE TABLE system_metrics (
+    ts INTEGER PRIMARY KEY,
+    cpu_pct REAL,
+    temp_c REAL,
+    mem_pct REAL
+  );
+  `,
 ];
 
 export function migrate(): void {

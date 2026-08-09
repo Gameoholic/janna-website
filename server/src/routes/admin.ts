@@ -9,6 +9,7 @@ import { id, now } from '../util';
 import { tailLog, log } from '../log';
 import { getLeadTimes, setLeadTimes } from '../scheduler';
 import { reloadModel } from '../whisper';
+import { getMetrics } from '../metrics';
 import { sseClientCount, broadcast } from '../sse';
 import { originOf } from './share';
 import { createDocument, saveDocumentContent } from './documents';
@@ -70,6 +71,11 @@ adminRouter.get('/overview', (_req, res) => {
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
   });
+});
+
+adminRouter.get('/metrics', (req, res) => {
+  const rangeMs = Math.min(90 * 24 * 3600_000, Math.max(60_000, Number(req.query.rangeMs) || 24 * 3600_000));
+  res.json({ samples: getMetrics(Date.now() - rangeMs) });
 });
 
 adminRouter.post('/setup-codes', (req, res) => {
