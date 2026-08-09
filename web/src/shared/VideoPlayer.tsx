@@ -63,6 +63,7 @@ export function VideoPlayer(props: {
   const [fullscreen, setFullscreen] = useState(false);
   const [fsSupported] = useState(isFullscreenSupported);
   const [rate, setRate] = useState(1);
+  const [scrubbing, setScrubbing] = useState(false);
   const speedMenu = useMenu();
 
   // A freshly opened file always starts at normal speed — she shouldn't have
@@ -140,6 +141,7 @@ export function VideoPlayer(props: {
 
   const onTrackDown = (e: ReactPointerEvent) => {
     draggingRef.current = true;
+    setScrubbing(true);
     trackRef.current!.setPointerCapture(e.pointerId);
     seekFromEvent(e);
   };
@@ -150,6 +152,7 @@ export function VideoPlayer(props: {
 
   const onTrackUp = () => {
     draggingRef.current = false;
+    setScrubbing(false);
   };
 
   const progress = durationMs > 0 ? (positionMs / durationMs) * 100 : 0;
@@ -245,6 +248,12 @@ export function VideoPlayer(props: {
         >
           <div className="seek-fill" style={{ width: `${progress}%` }} />
           <div className="seek-thumb" style={{ left: `${progress}%` }} />
+          {/* YouTube-style: current position shown right below the playback head while she's scrubbing. */}
+          {scrubbing ? (
+            <div className="seek-time-bubble num" style={{ left: `${progress}%` }}>
+              {fmtDuration(positionMs)}
+            </div>
+          ) : null}
         </div>
         <div className="video-overlay-time num">
           {fmtDuration(started ? positionMs : 0)} / {fmtDuration(durationMs)}

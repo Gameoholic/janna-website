@@ -120,21 +120,21 @@ export function CenterMessage(props: { title: string; body?: ReactNode; children
   );
 }
 
-let toastListener: ((text: string) => void) | null = null;
+let toastListener: ((text: string, durationMs: number) => void) | null = null;
 
 /** One-line feedback («Ссылка скопирована») — never used for results (P2). */
-export function showToast(text: string): void {
-  if (toastListener) toastListener(text);
+export function showToast(text: string, durationMs = 2600): void {
+  if (toastListener) toastListener(text, durationMs);
 }
 
 export function ToastHost() {
   const [text, setText] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => {
-    toastListener = (t) => {
+    toastListener = (t, durationMs) => {
       setText(t);
       window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setText(null), 2600);
+      timer.current = window.setTimeout(() => setText(null), durationMs);
     };
     return () => {
       toastListener = null;

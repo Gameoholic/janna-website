@@ -18,6 +18,7 @@ import { remindersRouter } from './routes/reminders';
 import { setupRouter } from './routes/setup';
 import { adminRouter } from './routes/admin';
 import { ensureWhisperService } from './whisper';
+import { backfillPlaybackProxies } from './playbackProxy';
 import { log } from './log';
 
 ensureDirs();
@@ -105,6 +106,9 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 });
 
 startScheduler();
+// Catches up any video uploaded before this feature existed — background,
+// sequential, never blocks server startup.
+void backfillPlaybackProxies().catch((e) => log.error('playback proxy backfill crashed', e));
 
 const server = app.listen(PORT, () => {
   log.info(`server listening on http://localhost:${PORT}`);

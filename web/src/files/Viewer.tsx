@@ -108,6 +108,7 @@ export function Viewer(props: {
 
       <div
         style={{
+          position: 'relative',
           flex: '1 1 auto',
           minHeight: 0,
           display: 'flex',
@@ -124,9 +125,40 @@ export function Viewer(props: {
             poster={file.kind === 'video' && file.hasThumb ? `/api/thumb/${file.id}` : undefined}
             style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', borderRadius: 10 }}
           />
-        ) : file.kind === 'image' ? (
+        ) : null}
+        {file.kind === 'video' ? (
+          // She's used to WhatsApp, where closing a played file means tapping
+          // the bottom-right corner — this sits alongside (not instead of)
+          // the top-left back button, same action either way. Held clear of
+          // VideoPlayer's own bottom control bar so the two never overlap.
+          <button
+            className="btn btn-compact"
+            style={{
+              position: 'absolute',
+              right: 18,
+              bottom: 70,
+              width: 52,
+              height: 52,
+              minWidth: 0,
+              padding: 0,
+              borderRadius: '50%',
+              background: 'rgba(20,20,20,0.55)',
+              border: '2px solid rgba(255,255,255,0.85)',
+              color: '#fff',
+              boxShadow: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onClick={props.onClose}
+            aria-label={t('Назад')}
+          >
+            <IconBack size={26} />
+          </button>
+        ) : null}
+        {file.kind === 'image' ? (
           <img src={mediaUrl} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10 }} />
-        ) : (
+        ) : file.kind === 'video' || file.kind === 'audio' ? null : (
           <div className="center">
             <p>{t('Этот файл нельзя показать здесь.')}</p>
             <a className="btn btn-primary btn-big" href={`/api/download/${file.id}`}>

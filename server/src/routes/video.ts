@@ -9,6 +9,7 @@ import { probe, EditParams, Segment } from '../ffmpeg';
 import { startEditJob, getJob, getSession, EditJobRow, EditSessionRow } from '../jobs';
 import { registerFile, fileToJson, folderPath, FileRow, kindOf, fixUploadName } from './files';
 import { completeUpload } from '../chunkedUpload';
+import { ensurePlaybackProxy, resolvePlaybackPath } from '../playbackProxy';
 import { log } from '../log';
 
 const ALLOWED_SPEEDS = [0.6, 0.7, 0.8, 0.9, 1];
@@ -51,6 +52,14 @@ async function createSession(sourcePath: string, sourceName: string, sourceFileI
     return null;
   }
   const sessionId = id();
+  // Editor preview streams straight from this file below — for HEVC etc.
+  // sources it would otherwise show a frozen first frame while scrubbing
+  // (same bug as Файлы playback). Keyed by the Файлы file id when picked
+  // from there, so this reuses/feeds the same cache instead of duplicating
+  // the transcode.
+  if (info.videoCodec !== 'h264') {
+    await ensurePlaybackProxy(sourceFileId ?? sessionId, sourcePath, info.hasAudio);
+  }
   db.prepare(
     `INSERT INTO edit_sessions (id, source_path, source_name, source_file_id, duration_ms, width, height, has_audio, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -156,8 +165,9 @@ videoRouter.get('/edit/sessions/:id/media', (req, res) => {
     res.status(404).json({ message: 'Видео не найдено.' });
     return;
   }
-  const mime = kindOf(session.source_name).mime;
-  res.sendFile(session.source_path, {
+  const servePath = resolvePlaybackPath(session.source_file_id ?? session.id, session.source_path);
+  const mime = servePath === session.source_path ? kindOf(session.source_name).mime : 'video/mp4';
+  res.sendFile(servePath, {
     headers: { 'Content-Type': mime === 'application/octet-stream' ? 'video/mp4' : mime },
     acceptRanges: true,
   });

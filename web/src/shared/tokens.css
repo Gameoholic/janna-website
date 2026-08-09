@@ -530,8 +530,23 @@ h2 { font-size: 21px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 10px 8px;
+  /* Extra bottom room reserves space for .seek-time-bubble below the thumb. */
+  padding: 10px 10px 22px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+}
+.seek-time-bubble {
+  position: absolute;
+  top: 100%;
+  margin-top: 6px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .video-overlay-btn {
   flex: 0 0 auto;

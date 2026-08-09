@@ -5,6 +5,7 @@ import { PUBLIC_ORIGIN } from '../config';
 import { token, now } from '../util';
 import { FileRow } from './files';
 import { sanitizeDocumentHtml } from './documents';
+import { resolvePlaybackPath } from '../playbackProxy';
 
 /** First embedded base64 image in a document's HTML, if any — used as the og:image preview. */
 const EMBEDDED_IMAGE = /<img[^>]+src="data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)"/;
@@ -163,11 +164,13 @@ function streamShared(req: Request, res: Response, download: boolean): void {
     return;
   }
   if (download) {
+    // Always the true original — the browser-playback proxy is a viewing aid only.
     const downloadName = file.kind === 'document' && !file.name.toLowerCase().endsWith('.html') ? `${file.name}.html` : file.name;
     res.download(file.path, downloadName);
   } else {
-    res.sendFile(file.path, {
-      headers: { 'Content-Type': file.mime, 'Cache-Control': 'public, max-age=3600' },
+    const servePath = file.kind === 'video' ? resolvePlaybackPath(file.id, file.path) : file.path;
+    res.sendFile(servePath, {
+      headers: { 'Content-Type': servePath === file.path ? file.mime : 'video/mp4', 'Cache-Control': 'public, max-age=3600' },
       acceptRanges: true,
     });
   }

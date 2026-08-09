@@ -324,7 +324,7 @@ export function FilesApp() {
       await api.patch(`/api/files/${moveFileTarget.id}`, { folderId });
       const destName = folderId ? byId.get(folderId)?.name || '' : null;
       setMoveFileTarget(null);
-      showToast(destName ? t('Файл теперь в папке «{name}»', { name: destName }) : t('Файл перемещён'));
+      showToast(destName ? t('Файл теперь в папке «{name}»', { name: destName }) : t('Файл перемещён'), 6000);
       reload();
     } catch (e) {
       showToast(e instanceof Error ? t(e.message) : t('Не получилось переместить.'));

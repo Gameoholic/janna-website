@@ -8,6 +8,7 @@ export interface ProbeInfo {
   height: number | null;
   hasAudio: boolean;
   hasVideo: boolean;
+  videoCodec: string | null;
 }
 
 export function run(bin: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -33,7 +34,7 @@ export async function probe(file: string): Promise<ProbeInfo> {
   if (code !== 0) throw new Error(`ffprobe failed (${code}): ${stderr.slice(0, 500)}`);
   const data = JSON.parse(stdout) as {
     format?: { duration?: string };
-    streams?: { codec_type?: string; width?: number; height?: number; duration?: string }[];
+    streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; duration?: string }[];
   };
   const streams = data.streams || [];
   const video = streams.find((s) => s.codec_type === 'video');
@@ -46,6 +47,7 @@ export async function probe(file: string): Promise<ProbeInfo> {
     height: video?.height ?? null,
     hasAudio: !!audio,
     hasVideo: !!video,
+    videoCodec: video?.codec_name ?? null,
   };
 }
 
@@ -175,6 +177,17 @@ export function buildEditArgs(
   // faststart → plays immediately when re-shared through WhatsApp.
   args.push('-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', output);
   return args;
+}
+
+/**
+ * Straight passthrough re-encode to H.264/AAC — same settings as a saved
+ * edit, just with nothing cut and no speed change. Used to make browser-
+ * unplayable sources (HEVC, etc.) watchable without touching the original.
+ */
+export async function makePlaybackProxy(input: string, output: string, hasAudio: boolean): Promise<void> {
+  const args = buildEditArgs(input, output, hasAudio, { segments: [], speed: 1 });
+  const { code, stderr } = await run(FFMPEG, args);
+  if (code !== 0) throw new Error(`playback proxy failed (${code}): ${stderr.slice(-800)}`);
 }
 
 export function expectedOutputMs(sourceMs: number, params: EditParams): number {

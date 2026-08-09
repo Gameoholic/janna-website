@@ -21,6 +21,7 @@ export const DIRS = {
   db: path.join(DATA_DIR, 'db'),
   media: path.join(DATA_DIR, 'media'),
   thumbs: path.join(DATA_DIR, 'thumbs'),
+  playback: path.join(DATA_DIR, 'playback'),
   editorSources: path.join(DATA_DIR, 'editor', 'sources'),
   editorOutputs: path.join(DATA_DIR, 'editor', 'outputs'),
   trash: path.join(DATA_DIR, 'trash'),

@@ -8,6 +8,7 @@ import { DIRS } from '../config';
 import { id, now, extOf } from '../util';
 import { probe, makeVideoThumb, makeImageThumb } from '../ffmpeg';
 import { completeUpload } from '../chunkedUpload';
+import { schedulePlaybackProxy, resolvePlaybackPath, deletePlaybackProxy } from '../playbackProxy';
 import { log } from '../log';
 
 export interface FolderRow {
@@ -87,16 +88,23 @@ export async function enrichStoredFile(fileId: string): Promise<void> {
   let height: number | null = null;
   let thumbPath: string | null = null;
   try {
+    let videoInfo: Awaited<ReturnType<typeof probe>> | null = null;
     if (row.kind === 'video' || row.kind === 'audio') {
-      const info = await probe(row.path);
-      durationMs = info.durationMs || null;
-      width = info.width;
-      height = info.height;
+      videoInfo = await probe(row.path);
+      durationMs = videoInfo.durationMs || null;
+      width = videoInfo.width;
+      height = videoInfo.height;
     }
     if (row.kind === 'video') {
       const out = path.join(DIRS.thumbs, `${row.id}.jpg`);
       await makeVideoThumb(row.path, out, Math.min(2000, (durationMs || 4000) / 2));
       thumbPath = out;
+      // Browser-unplayable sources (HEVC, etc.) get a compatible copy — never
+      // blocks this upload response, the media route falls back to the
+      // original until it's ready.
+      if (videoInfo && videoInfo.hasVideo && videoInfo.videoCodec !== 'h264') {
+        schedulePlaybackProxy(row.id, row.path, videoInfo.hasAudio);
+      }
     } else if (row.kind === 'image') {
       const out = path.join(DIRS.thumbs, `${row.id}.jpg`);
       await makeImageThumb(row.path, out);
@@ -173,6 +181,7 @@ export function moveBinaryToTrash(row: Pick<FileRow, 'id' | 'path' | 'thumb_path
     if (row.thumb_path && fs.existsSync(row.thumb_path)) {
       fs.unlinkSync(row.thumb_path);
     }
+    deletePlaybackProxy(row.id); // derived artifact, not her content — dropped outright like the thumb
   } catch (e) {
     log.warn(`trash move failed for ${row.id}`, e);
   }
@@ -425,11 +434,14 @@ function streamStoredFile(req: Request, res: Response, download: boolean): void 
   if (download) {
     // Her display name for a document has no extension (it's a note title,
     // not a filename) — but a downloaded file needs one to open correctly.
+    // Downloads always give back the true original (P10), never the
+    // browser-playback proxy.
     const downloadName = row.kind === 'document' && extOf(row.name) !== '.html' ? `${row.name}.html` : row.name;
     res.download(row.path, downloadName);
   } else {
-    res.sendFile(row.path, {
-      headers: { 'Content-Type': row.mime, 'Cache-Control': 'private, max-age=3600' },
+    const servePath = row.kind === 'video' ? resolvePlaybackPath(row.id, row.path) : row.path;
+    res.sendFile(servePath, {
+      headers: { 'Content-Type': servePath === row.path ? row.mime : 'video/mp4', 'Cache-Control': 'private, max-age=3600' },
       acceptRanges: true,
     });
   }
