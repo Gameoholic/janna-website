@@ -11,6 +11,12 @@ export function Dialog(props: {
   onClose?: () => void;
   full?: boolean;
 }) {
+  // Selecting text in a field (e.g. dragging to select, then releasing past
+  // the dialog's edge) fires a click whose target is the backdrop, even
+  // though the gesture started inside the dialog — that used to close the
+  // dialog out from under her mid-edit. Only close when BOTH the press and
+  // the release landed on the backdrop itself, not just the release.
+  const downOnOverlay = useRef(false);
   useEffect(() => {
     if (!props.open) return;
     const prev = document.body.style.overflow;
@@ -23,8 +29,12 @@ export function Dialog(props: {
   return (
     <div
       className="dialog-overlay"
+      onMouseDown={(e) => {
+        downOnOverlay.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && props.onClose) props.onClose();
+        if (downOnOverlay.current && e.target === e.currentTarget && props.onClose) props.onClose();
+        downOnOverlay.current = false;
       }}
     >
       <div className={`dialog swap-enter${props.full ? ' dialog-full' : ''}`}>
