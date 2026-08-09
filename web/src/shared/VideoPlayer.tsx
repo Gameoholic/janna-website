@@ -268,10 +268,11 @@ export function VideoPlayer(props: {
         {fsSupported ? (
           <button
             className="video-overlay-btn"
+            style={{ width: 40, height: 40 }}
             onClick={toggleFullscreen}
             aria-label={fullscreen ? t('Свернуть') : t('На весь экран')}
           >
-            {fullscreen ? <IconCompress size={16} /> : <IconExpand size={16} />}
+            {fullscreen ? <IconCompress size={20} /> : <IconExpand size={20} />}
           </button>
         ) : null}
       </div>
