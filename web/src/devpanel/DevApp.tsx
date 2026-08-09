@@ -16,6 +16,7 @@ interface Overview {
   disk: { total: number; free: number; used: number };
   sseClients: number;
   leadTimesMs: number[];
+  whisperModel: string;
   uptimeSec: number;
   node: string;
 }
@@ -165,6 +166,8 @@ export function DevApp() {
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
   const [leads, setLeads] = useState('');
+  const [whisperModel, setWhisperModel] = useState('small');
+  const [savingModel, setSavingModel] = useState(false);
   const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
   const [deployJob, setDeployJob] = useState<DeployJob | null>(null);
   const pollRef = useRef<number | null>(null);
@@ -195,6 +198,7 @@ export function DevApp() {
       const data = await api.get<Overview>('/api/admin/overview');
       setOverview(data);
       setLeads(data.leadTimesMs.map((ms) => String(Math.round(ms / 60000))).join(', '));
+      setWhisperModel(data.whisperModel);
       setAuthorized(true);
       const codesRes = await api.get<{ codes: typeof codes }>('/api/admin/setup-codes');
       setCodes(codesRes.codes);
@@ -657,6 +661,52 @@ export function DevApp() {
             }}
           >
             Save
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2>Whisper model (Голос transcription)</h2>
+        <p className="muted small">
+          small = default, good Russian accuracy on an 8GB Pi 5. tiny/base = faster but poor
+          Russian accuracy. medium = better accuracy, may be slow/heavy on 8GB — experiment
+          only. Changing this reloads the model in the running whisper service (no restart).
+        </p>
+        <div className="row">
+          <select
+            className="input"
+            style={{ maxWidth: 200, minHeight: 44 }}
+            value={whisperModel}
+            onChange={(e) => setWhisperModel(e.target.value)}
+          >
+            <option value="tiny">tiny</option>
+            <option value="base">base</option>
+            <option value="small">small (default)</option>
+            <option value="medium">medium</option>
+          </select>
+          <button
+            className="btn btn-compact btn-primary"
+            disabled={savingModel}
+            onClick={async () => {
+              setSavingModel(true);
+              try {
+                const res = await fetch('/api/admin/settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ whisperModel }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data?.error || 'Failed.');
+                say('Model reloaded.');
+                await loadAll();
+              } catch (e) {
+                say(e instanceof Error ? e.message : 'Failed.');
+              } finally {
+                setSavingModel(false);
+              }
+            }}
+          >
+            {savingModel ? 'Reloading…' : 'Save'}
           </button>
         </div>
       </div>

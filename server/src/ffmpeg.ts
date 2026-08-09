@@ -10,7 +10,7 @@ export interface ProbeInfo {
   hasVideo: boolean;
 }
 
-function run(bin: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+export function run(bin: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { windowsHide: true });
     let stdout = '';
@@ -87,6 +87,17 @@ export async function resizeImageToJpeg(input: string, output: string, maxDim: n
     output,
   ]);
   if (code !== 0) throw new Error(`image resize failed: ${stderr.slice(0, 500)}`);
+}
+
+/** Голос (8D): normalizes whatever MediaRecorder produced (typically webm/opus) into the 16kHz mono PCM WAV faster-whisper wants. */
+export async function convertToWhisperWav(input: string, output: string): Promise<void> {
+  const { code, stderr } = await run(FFMPEG, [
+    '-y', '-loglevel', 'error',
+    '-i', input,
+    '-vn', '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le',
+    output,
+  ]);
+  if (code !== 0) throw new Error(`audio conversion failed: ${stderr.slice(0, 500)}`);
 }
 
 export interface Segment {

@@ -15,6 +15,7 @@ export default defineConfig({
         video: resolve(__dirname, 'video/index.html'),
         files: resolve(__dirname, 'files/index.html'),
         reminders: resolve(__dirname, 'reminders/index.html'),
+        voice: resolve(__dirname, 'voice/index.html'),
         dev: resolve(__dirname, 'dev/index.html'),
       },
     },

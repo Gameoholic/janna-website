@@ -9,10 +9,10 @@ import { t } from './i18n';
 type Gate = 'loading' | 'ok' | 'unprovisioned' | 'offline';
 
 /**
- * Common wrapper for the three apps: device gate (P7 — no login UI, ever),
+ * Common wrapper for the four apps: device gate (P7 — no login UI, ever),
  * service worker + push registration, alarm client, toast host.
  */
-export function AppShell(props: { app: 'video' | 'files' | 'reminders'; children: ReactNode }) {
+export function AppShell(props: { app: 'video' | 'files' | 'reminders' | 'voice'; children: ReactNode }) {
   const [gate, setGate] = useState<Gate>('loading');
 
   useEffect(() => {

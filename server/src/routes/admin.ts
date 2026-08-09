@@ -2,12 +2,13 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
-import { db } from '../db';
-import { DATA_DIR, DIRS, UPDATER_TOKEN, UPDATER_URL } from '../config';
+import { db, getSetting } from '../db';
+import { DATA_DIR, DIRS, UPDATER_TOKEN, UPDATER_URL, WHISPER_DEFAULT_MODEL } from '../config';
 import { COOKIE_DEVICE, cookieOptions, createSetupCode, provisionDevice } from '../auth';
 import { id, now } from '../util';
 import { tailLog, log } from '../log';
 import { getLeadTimes, setLeadTimes } from '../scheduler';
+import { reloadModel } from '../whisper';
 import { sseClientCount, broadcast } from '../sse';
 import { originOf } from './share';
 import { createDocument, saveDocumentContent } from './documents';
@@ -65,6 +66,7 @@ adminRouter.get('/overview', (_req, res) => {
     disk: diskUsage(DATA_DIR),
     sseClients: sseClientCount(),
     leadTimesMs: getLeadTimes(),
+    whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL,
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
   });
@@ -141,19 +143,29 @@ adminRouter.delete('/shares/:token', (req, res) => {
 });
 
 adminRouter.get('/settings', (_req, res) => {
-  res.json({ leadTimesMs: getLeadTimes() });
+  res.json({ leadTimesMs: getLeadTimes(), whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL });
 });
 
-adminRouter.put('/settings', (req, res) => {
-  const leads = Array.isArray(req.body?.leadTimesMs)
-    ? (req.body.leadTimesMs as unknown[]).map(Number).filter((n) => Number.isFinite(n) && n > 0)
-    : null;
-  if (!leads) {
-    res.status(400).json({ error: 'leadTimesMs must be an array of positive ms values' });
-    return;
+adminRouter.put('/settings', async (req, res) => {
+  if (req.body?.leadTimesMs !== undefined) {
+    const leads = Array.isArray(req.body.leadTimesMs)
+      ? (req.body.leadTimesMs as unknown[]).map(Number).filter((n) => Number.isFinite(n) && n > 0)
+      : null;
+    if (!leads) {
+      res.status(400).json({ error: 'leadTimesMs must be an array of positive ms values' });
+      return;
+    }
+    setLeadTimes(leads);
   }
-  setLeadTimes(leads);
-  res.json({ leadTimesMs: getLeadTimes() });
+  if (req.body?.whisperModel !== undefined) {
+    try {
+      await reloadModel(String(req.body.whisperModel));
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+  }
+  res.json({ leadTimesMs: getLeadTimes(), whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL });
 });
 
 adminRouter.get('/logs', (req, res) => {

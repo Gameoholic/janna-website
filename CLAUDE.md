@@ -5,9 +5,10 @@ Guidance for Claude Code working in this repo. Read this, then read
 
 ## What this is
 
-A personal platform for **one specific elderly Russian-speaking user**. Three
+A personal platform for **one specific elderly Russian-speaking user**. Four
 separate installable PWAs — **Видео** (video editor), **Файлы** (storage),
-**Напоминания** (reminders) — served by one Node backend.
+**Напоминания** (reminders), **Голос** (voice-to-text) — served by one Node
+backend.
 
 ## Prime directive
 
@@ -39,7 +40,7 @@ explicitly** — never ship a silent downgrade dressed up as success.
   sidebar, contents on the right. Don't invent new navigation metaphors.
 - **Shared components (P12).** The folder picker, confirm dialogs, back/«Готово»
   controls, alarm takeover live in `web/src/shared/` and are reused across all
-  three apps. Change them there, not per-app.
+  four apps. Change them there, not per-app.
 
 ## Commands
 
@@ -51,27 +52,30 @@ npm run dev:server # tsx watch; npm run dev:web = vite :5173 proxying to :8077
 ```
 
 npm workspaces: `-w server` / `-w web` to target one. ffmpeg + ffprobe must be
-on PATH. Verify behaviour by building, `npm start`, and driving the HTTP API
-end-to-end (provision a device via the `/dev?key=` admin cookie, then exercise
-the flow) — not just typecheck. PWA/push only behave correctly in the built app.
+on PATH; a local `whisper_service.py` (Python 3 + `faster-whisper`) must be
+running for Голос transcription — see `server/whisper_service.py`. Verify
+behaviour by building, `npm start`, and driving the HTTP API end-to-end
+(provision a device via the `/dev?key=` admin cookie, then exercise the flow)
+— not just typecheck. PWA/push only behave correctly in the built app.
 
 ## Architecture
 
-- **Single origin.** One backend serves the API, the three frontends, the
+- **Single origin.** One backend serves the API, the four frontends, the
   public per-file share pages, and the hidden dev panel.
 - **`server/src/`** — Express + TypeScript. `db.ts` (better-sqlite3, single
   migrations array, `user_version`), `auth.ts` (device + admin cookies),
   `ffmpeg.ts` + `jobs.ts` (edit jobs: keep-segments jumpcut + pitch-preserved
-  `atempo` speed, single `filter_complex` pass), `scheduler.ts` (5s tick fires
-  reminders, sends lead pushes), `push.ts` (Web Push/VAPID), `sse.ts` (ring/stop
-  channel), `routes/`.
+  `atempo` speed, single `filter_complex` pass), `voiceJobs.ts` + `whisper.ts`
+  (transcription jobs: talks to the warm local `whisper_service.py` process),
+  `scheduler.ts` (5s tick fires reminders, sends lead pushes), `push.ts` (Web
+  Push/VAPID), `sse.ts` (ring/stop channel), `routes/`.
 - **`web/src/`** — React + Vite. `shared/` (tokens.css design system,
   AppShell device gate, Picker, alarm client + takeover, russian.ts formatting,
-  api.ts). One app each in `video/ files/ reminders/ devpanel/`. Multi-page
-  Vite build, one HTML entry per app.
-- **`web/public/sw.js`** — root-scoped service worker shared by all three apps:
+  api.ts). One app each in `video/ files/ reminders/ voice/ devpanel/`.
+  Multi-page Vite build, one HTML entry per app.
+- **`web/public/sw.js`** — root-scoped service worker shared by all four apps:
   receives pushes, mirrors ring/stop to open windows, shells cache. Plain ES5-ish
-  JS (must run on Chrome 109). Three `.webmanifest` files → three home icons.
+  JS (must run on Chrome 109). Four `.webmanifest` files → four home icons.
 - **SQLite metadata, binaries on disk** under `data/` (`DATA_DIR`). Never store
   media as DB blobs.
 
@@ -89,6 +93,17 @@ Per-file permanent link → unguessable token → one file only. The public page
 exposes nothing else (no folders, no app, no traversal). OG tags + thumbnail so
 WhatsApp shows thumbnail + title; true in-bubble playback is impossible for a
 custom domain — don't pretend otherwise. Deleting the file kills the link.
+
+## Voice transcription (Section 8D)
+
+Record → stop → server transcribes locally via `faster-whisper` (no cloud
+API) → editable Russian text. Recording again **appends** to existing text,
+never replaces it. Blocked from re-recording while a job is running, but she
+isn't shown any state to manage — the toggle button just reflects it. Audio
+is discarded server-side right after transcription; only text persists, and
+only in her hands (copy/share) — never saved to Файлы. Model size
+(`tiny/base/small/medium`, default `small`) is admin-only, changed from the
+dev panel via a live-reload endpoint (no restart needed) — never shown to her.
 
 ## Conventions & gotchas
 

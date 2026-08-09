@@ -117,6 +117,24 @@ export const IconPalette = ({ size }: IconProps) =>
     </g>,
     size
   );
+export const IconMic = ({ size }: IconProps) =>
+  svg(
+    <g>
+      <path d="M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3z" />
+      <path d="M6 11a6 6 0 0012 0M12 19v2" />
+    </g>,
+    size
+  );
+export const IconStop = ({ size }: IconProps) =>
+  svg(<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />, size);
+export const IconCopy = ({ size }: IconProps) =>
+  svg(
+    <g>
+      <rect x="9" y="9" width="11" height="11" rx="1.6" />
+      <path d="M5 15V5a1.6 1.6 0 011.6-1.6H15" />
+    </g>,
+    size
+  );
 export const IconMore = ({ size }: IconProps) =>
   svg(
     <g fill="currentColor" stroke="none">

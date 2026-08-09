@@ -26,6 +26,8 @@ export const DIRS = {
   trash: path.join(DATA_DIR, 'trash'),
   logs: path.join(DATA_DIR, 'logs'),
   tmp: path.join(DATA_DIR, 'tmp'),
+  voiceTmp: path.join(DATA_DIR, 'voice', 'tmp'),
+  whisperCache: path.join(DATA_DIR, 'whisper-cache'),
 };
 
 export function ensureDirs(): void {
@@ -34,6 +36,13 @@ export function ensureDirs(): void {
 
 export const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 export const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
+
+// Local Голос (voice-to-text) transcription. whisper_service.py is spawned
+// as a child process and talks over localhost only — never exposed publicly.
+export const PYTHON = process.env.PYTHON_PATH || 'python3';
+export const WHISPER_SERVICE_PORT = Number(process.env.WHISPER_SERVICE_PORT || 8078);
+export const WHISPER_SERVICE_URL = `http://127.0.0.1:${WHISPER_SERVICE_PORT}`;
+export const WHISPER_DEFAULT_MODEL = process.env.WHISPER_DEFAULT_MODEL || 'small';
 
 // Admin panel "Deploy from GitHub" — talks to the updater sidecar (see
 // deploy/updater/). Blank UPDATER_URL means the feature is simply hidden.

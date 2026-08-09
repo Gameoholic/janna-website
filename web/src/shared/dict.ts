@@ -246,4 +246,22 @@ export const EN: Record<string, string> = {
   'Час меньше': 'Hour down',
   'Минуты больше': 'Minutes up',
   'Минуты меньше': 'Minutes down',
+
+  // ---- voice ----
+  'Голос': 'Voice',
+  'Остановить запись': 'Stop recording',
+  'Начать запись': 'Start recording',
+  'Идёт запись… {t}': 'Recording… {t}',
+  'Распознаём речь…': 'Transcribing…',
+  'Нажмите и говорите': 'Tap and speak',
+  'Здесь появится распознанный текст. Его можно редактировать.': 'The transcribed text will appear here. You can edit it.',
+  'Копировать': 'Copy',
+  'Скопировано.': 'Copied.',
+  'Не получилось скопировать.': 'Failed to copy.',
+  'Сброс': 'Reset',
+  'Очистить текст?': 'Clear text?',
+  'Весь распознанный текст будет удалён. Это нельзя отменить.': 'All transcribed text will be deleted. This cannot be undone.',
+  'Запись голоса не поддерживается на этом устройстве.': 'Voice recording is not supported on this device.',
+  'Нет доступа к микрофону. Разрешите доступ и попробуйте снова.': 'No microphone access. Allow access and try again.',
+  'Не получилось распознать речь. Попробуйте ещё раз.': 'Failed to transcribe speech. Try again.',
 };

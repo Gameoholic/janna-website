@@ -112,6 +112,20 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE files ADD COLUMN snippet TEXT;
   `,
+  // Голос (voice-to-text, master-prompt 8D). No session table — unlike video
+  // edits there's no multi-step wizard state, a job starts as soon as she
+  // stops recording. Audio itself is never kept; only the resulting text.
+  `
+  CREATE TABLE transcription_jobs (
+    id TEXT PRIMARY KEY,
+    state TEXT NOT NULL DEFAULT 'running', -- running | done | error
+    progress REAL NOT NULL DEFAULT 0,
+    text TEXT,
+    error TEXT,
+    duration_ms INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function migrate(): void {

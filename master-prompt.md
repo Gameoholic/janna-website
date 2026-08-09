@@ -33,7 +33,7 @@ Section 1 is the constitution. Sections 2–12 elaborate. Section 13 is scratch 
 
 **P7 — Private by default, but no login friction for her.** Only she — and the developer acting *as her* — can reach her data. She should **authenticate once per device and never see a login screen again**. There is no account system, no username/password UI for her. The only public surface is individual shared files (P8-adjacent), and each shared link exposes **exactly one file and nothing else** — never the rest of the site.
 
-**P8 — Three separate, focused tools — not one hub of menus.** The three tools are **separate things**, each with its **own app icon** on her phone: **Видео** (video editor), **Файлы** (storage), **Напоминания** (reminders). She opens the one she wants and it does one job. Do **not** build a single app with a tree of menus she has to navigate — that's the confusion we're avoiding.
+**P8 — Four separate, focused tools — not one hub of menus.** The tools are **separate things**, each with its **own app icon** on her phone: **Видео** (video editor), **Файлы** (storage), **Напоминания** (reminders), **Голос** (voice-to-text). She opens the one she wants and it does one job. Do **not** build a single app with a tree of menus she has to navigate — that's the confusion we're avoiding.
 
 **P9 — Reminders are an alarm, not a notification.** She ignores ordinary notifications (she has dozens). A reminder must be **as loud and screen-covering as the platform technically allows**, and coordinated across her phone and PC so she cannot miss it and so dismissing it once stops it everywhere.
 
@@ -41,7 +41,7 @@ Section 1 is the constitution. Sections 2–12 elaborate. Section 13 is scratch 
 
 **P11 — The developer can help "as her" and maintain the system invisibly.** There is a hidden entry point (a secret URL or gesture) for the developer to act on her behalf and to maintain/inspect/fix the system. It is invisible during her normal use.
 
-**P12 — Consistency across the three tools.** Shared visual language and shared interaction patterns (the folder picker, the back/«Готово» controls, transitions, confirmation dialogs) so that learning one tool helps with the others. Learning should transfer.
+**P12 — Consistency across the four tools.** Shared visual language and shared interaction patterns (the folder picker, the back/«Готово» controls, transitions, confirmation dialogs) so that learning one tool helps with the others. Learning should transfer.
 
 ---
 
@@ -77,15 +77,15 @@ This is the single most important instruction for you as the builder:
 - **Files on disk:** a structured data directory (e.g. `/data/media/...`) with metadata rows pointing to paths.
 - **Containerization:** **Docker + docker-compose**, ARM-compatible images (runs on the Pi; also runnable on a rented server). **FFmpeg installed in the container** (ARM build).
 - **Public reachability:** **Cloudflare Tunnel** → gives HTTPS + a stable public hostname with no port-forwarding. HTTPS is *required* anyway for PWA install, Web Push, and share links.
-- **PWA:** installable; a service worker for the app shell + push. **Three manifests → three home-screen icons** (Видео / Файлы / Напоминания), same origin.
+- **PWA:** installable; a service worker for the app shell + push. **Four manifests → four home-screen icons** (Видео / Файлы / Напоминания / Голос), same origin.
 - **Conservative browser support:** transpile/polyfill down for old Chrome (Win7). Avoid bleeding-edge web APIs, or feature-detect and degrade. Test explicitly on **A31 Chrome** and **Win7 Chrome**.
 
 ---
 
 ## 5. ARCHITECTURE OVERVIEW (suggested — change if better serves the intent)
 
-- A **single backend** serves: the API, the three installable frontends, and the public per-file share pages.
-- **Single origin.** A **root-scoped service worker** handles push and broadcasts alarm ring/stop events to all open app windows (via the SW clients API / BroadcastChannel), so *whichever* of the three apps is open can show the alarm. **Three manifests** (different name/icon/start_url, same scope) produce three distinct home-screen icons per P8.
+- A **single backend** serves: the API, the four installable frontends, and the public per-file share pages.
+- **Single origin.** A **root-scoped service worker** handles push and broadcasts alarm ring/stop events to all open app windows (via the SW clients API / BroadcastChannel), so *whichever* of the four apps is open can show the alarm. **Four manifests** (different name/icon/start_url, same scope) produce four distinct home-screen icons per P8.
 - A **real-time channel** (SSE or WebSocket) carries alarm ring state and **cross-device dismiss sync**.
 - **Media delivery:** authenticated routes for her own browsing (with HTTP range requests for video/audio); **separate public routes** for single-file shares that never list or expose anything else.
 - **Reminders scheduler** runs server-side so firing does not depend on any client being open.
@@ -119,7 +119,7 @@ This is the single most important instruction for you as the builder:
 
 ---
 
-## 8. THE THREE TOOLS
+## 8. THE FOUR TOOLS
 
 ### 8A. ВИДЕО — video editor (desktop-first, fully works on phone)
 
@@ -192,7 +192,7 @@ This is the single most important instruction for you as the builder:
 
 **Honest technical limitation to encode (do not paper over):**
 A website — even an installed PWA — **cannot force-launch itself when it is closed or the phone is locked**; the OS forbids it. Therefore:
-- **When any of the three apps is open (phone or PC):** do the **full-screen alarm takeover** — cover the whole screen, big Russian reminder text, **loud sound + vibrate (phone)**, buttons **«OK»** and **«Показать через 5 минут»**.
+- **When any of the four apps is open (phone or PC):** do the **full-screen alarm takeover** — cover the whole screen, big Russian reminder text, **loud sound + vibrate (phone)**, buttons **«OK»** and **«Показать через 5 минут»**.
 - **When everything is closed / phone locked:** fire the **strongest available push** — high-priority, sound + vibrate, as prominent/full-screen-style as the platform permits. It will not literally auto-open, but it will ring hard and open on tap.
 - **Required one-time setup step (document it):** on the A31, allowlist the app against Samsung's battery optimization ("never sleeping apps" / disable "put app to sleep") so closed-phone delivery is reliable and on time. Ship this as a written setup step.
 - The **PC being on is the reliable fallback** for the closed-phone case — lean into it: if the PC app is open, it does the full takeover regardless of the phone.
@@ -208,12 +208,35 @@ A website — even an installed PWA — **cannot force-launch itself when it is 
 
 ---
 
-## 9. DESIGN SYSTEM & RESPONSIVENESS (cross-cutting)
+### 8D. ГОЛОС — voice-to-text (record → editable Russian text)
 
-**Intent:** one consistent, comfortable, Russian-language feel across all three tools; flawless on the A31; usable on Win7 Chrome; she can never get stranded.
+**Purpose:** she records her voice and gets back editable Russian text she can copy or send — without typing.
+
+**Intent (immutable):**
+- One **start/stop toggle button** (same button, swaps state). Stopping or starting a recording **never deletes existing transcribed text** — a new recording's result is **added to** what's already there, not a replacement (the text-equivalent of P10's "never destroy her originals").
+- While a recording is transcribing, she is **blocked from starting another recording**, but she is not shown or asked to manage that state herself — the button simply reflects it (an application of P2: no extra thing for her to track).
+- The **result appears in place** as editable text (P2) — she can revise it before copying/sharing.
+- Big **«Копировать»** (clipboard), **«Поделиться»** (native share sheet to WhatsApp etc.), **«Сброс»** (clears the text, **confirmed** first via the shared confirm dialog — P12).
+- **Local, self-hosted transcription only — no cloud speech-to-text API.** Consistent with keeping her data off third-party services (the spirit of P7).
+- The **recorded audio itself is never kept** — it exists only long enough to produce the text, then is discarded server-side. Only the text persists, and only in her hands (copy/share) — it is **not** saved into Файлы. This is a deliberate scope decision, distinct from 8B's file-storage model.
+- Everything she sees is Russian (P5), same as every other tool.
+
+**Honest technical limitation to encode:** running Whisper-family models locally on a Raspberry Pi is far slower than a cloud API, especially for the larger/more-accurate model sizes. The realistic target is **batch transcription shortly after she stops recording** (seconds to tens of seconds depending on recording length and model size), not live captions while she talks. Don't pretend otherwise, and don't silently degrade to a cloud service to hide the wait.
 
 **Suggested implementation (changeable):**
-- A **shared component library + design tokens** used by all three apps (P12): the folder picker, confirmation dialogs, back/«Готово» controls, alarm takeover, buttons, transitions.
+- Browser `MediaRecorder` captures audio; on stop, upload to the server, which converts it (FFmpeg) to the format the transcription model wants and runs it through a **locally-hosted `faster-whisper`** model.
+- Default model: **`small`** (int8-quantized) — meaningfully better Russian accuracy than `tiny`/`base` while still tractable on a Raspberry Pi 5 (8GB) for realistic 1–5 minute recordings processed in batch, not real-time.
+- **Model choice (`tiny`/`base`/`small`/`medium`) is admin-only**, changeable from the hidden maintenance panel (Section 6) — **never shown to her.**
+- Keep the transcription process **warm** (loaded once, not reloaded per recording) so her wait time doesn't include model-load cost on every single use.
+
+---
+
+## 9. DESIGN SYSTEM & RESPONSIVENESS (cross-cutting)
+
+**Intent:** one consistent, comfortable, Russian-language feel across all four tools; flawless on the A31; usable on Win7 Chrome; she can never get stranded.
+
+**Suggested implementation (changeable):**
+- A **shared component library + design tokens** used by all four apps (P12): the folder picker, confirmation dialogs, back/«Готово» controls, alarm takeover, buttons, transitions.
 - **Targets & spacing:** large, well-spaced interactive elements; enforce comfortable minimum sizes and minimum spacing; **never** allow adjacent targets close enough to cause mis-taps; **never** allow horizontal overflow on the A31.
 - **Transitions:** short, smooth, non-fancy when swapping in-place controls (video modes, folder navigation).
 - **Russian typography**, readable sizes, high contrast.
@@ -230,7 +253,7 @@ A website — even an installed PWA — **cannot force-launch itself when it is 
 - **Hidden maintenance access** (Section 6): status, logs, data inspection/fix, device re-provisioning, share-link management, global notification settings.
 - **Logging** that's useful to the developer; **friendly Russian** messages for her — never a raw error or English string in her view.
 - **Simple update path:** rebuild container, redeploy; migrations run cleanly.
-- **Setup docs** (for the developer): provisioning her devices, installing the three PWA icons on phone + PC, and the **Samsung battery-optimization allowlisting** step.
+- **Setup docs** (for the developer): provisioning her devices, installing the four PWA icons on phone + PC, and the **Samsung battery-optimization allowlisting** step.
 
 ---
 
@@ -280,3 +303,9 @@ A website — even an installed PWA — **cannot force-launch itself when it is 
   separate confirm step; a dismissed reminder is deleted, not kept marked
   "done"; the alarm tune and the shared video player controls were reworked
   for clarity.
+- **v1.2** — added a fourth tool, **Голос** (voice-to-text, Section 8D): P8
+  now describes four separate tools instead of three. Local/self-hosted
+  Whisper transcription (`faster-whisper`, admin-selectable model size,
+  default `small`), text-only — recorded audio is discarded after
+  transcription and never saved to Файлы. New recordings append to existing
+  transcribed text rather than replacing it.

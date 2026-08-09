@@ -13,14 +13,17 @@ import { documentsRouter } from './routes/documents';
 import { uploadsRouter } from './routes/uploads';
 import { shareApiRouter, sharePublicRouter } from './routes/share';
 import { videoRouter } from './routes/video';
+import { voiceRouter } from './routes/voice';
 import { remindersRouter } from './routes/reminders';
 import { setupRouter } from './routes/setup';
 import { adminRouter } from './routes/admin';
+import { ensureWhisperService } from './whisper';
 import { log } from './log';
 
 ensureDirs();
 migrate();
 initPush();
+ensureWhisperService();
 const adminSecret = ensureAdminSecret();
 
 const app = express();
@@ -61,10 +64,11 @@ api.use(documentsRouter);
 api.use(uploadsRouter);
 api.use(shareApiRouter);
 api.use(videoRouter);
+api.use(voiceRouter);
 api.use(remindersRouter);
 app.use('/api', deviceAuth, api);
 
-// ---- Static frontends (the three apps + root chooser + dev panel) ----
+// ---- Static frontends (the four apps + root chooser + dev panel) ----
 app.use(
   express.static(WEB_DIST, {
     setHeaders: (res, filePath) => {
