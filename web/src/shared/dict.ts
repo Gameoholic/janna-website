@@ -258,7 +258,6 @@ export const EN: Record<string, string> = {
   'Копировать': 'Copy',
   'Скопировано.': 'Copied.',
   'Не получилось скопировать.': 'Failed to copy.',
-  'Сброс': 'Reset',
   'Очистить текст?': 'Clear text?',
   'Весь распознанный текст будет удалён. Это нельзя отменить.': 'All transcribed text will be deleted. This cannot be undone.',
   'Запись голоса не поддерживается на этом устройстве.': 'Voice recording is not supported on this device.',

@@ -144,20 +144,20 @@ export function VoiceApp() {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 560 }}>
+    <div className="page" style={{ maxWidth: 560, paddingBottom: 24 }}>
       <TopBar title={t('Голос')} />
       <div className="stack swap-enter">
-        <div className="card center" style={{ padding: '28px 20px' }}>
+        <div className="card center" style={{ padding: '18px 20px' }}>
           <button
             className={`btn btn-big ${stage === 'recording' ? 'btn-danger' : 'btn-primary'}`}
-            style={{ width: 96, height: 96, borderRadius: '50%', margin: '0 auto' }}
+            style={{ width: 80, height: 80, borderRadius: '50%', margin: '0 auto' }}
             onClick={toggleRecord}
             disabled={stage === 'transcribing'}
             aria-label={stage === 'recording' ? t('Остановить запись') : t('Начать запись')}
           >
-            {stage === 'recording' ? <IconStop size={34} /> : <IconMic size={34} />}
+            {stage === 'recording' ? <IconStop size={30} /> : <IconMic size={30} />}
           </button>
-          <p style={{ marginTop: 14, fontSize: 18 }}>
+          <p style={{ marginTop: 10, fontSize: 18 }}>
             {stage === 'recording'
               ? t('Идёт запись… {t}', { t: fmtElapsed(elapsedSec) })
               : stage === 'transcribing'
@@ -169,7 +169,7 @@ export function VoiceApp() {
 
         <textarea
           className="input"
-          style={{ minHeight: 180, fontSize: 17, lineHeight: 1.5, resize: 'vertical' }}
+          style={{ minHeight: 130, fontSize: 17, lineHeight: 1.5, resize: 'vertical' }}
           placeholder={t('Здесь появится распознанный текст. Его можно редактировать.')}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -196,7 +196,7 @@ export function VoiceApp() {
           ) : null}
         </div>
         <button className="btn btn-ghost btn-block" disabled={!text.trim()} onClick={() => setResetConfirm(true)}>
-          {t('Сброс')}
+          {t('Очистить')}
         </button>
       </div>
 
