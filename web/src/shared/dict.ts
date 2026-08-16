@@ -17,7 +17,7 @@ export const EN: Record<string, string> = {
   'Закрыть': 'Close',
   'Готово': 'Done',
   'Назад': 'Back',
-  'Возврат': 'Back to home',
+  'Выйти': 'Exit',
   'Сохранить': 'Save',
   'Это устройство ещё не подключено': 'This device is not connected yet',
   'Чтобы всё заработало, нужно один раз открыть на этом устройстве специальную ссылку. Позвоните Даниилу — он поможет.':
@@ -105,7 +105,6 @@ export const EN: Record<string, string> = {
   'Все отмеченные части и скорость будут убраны.': 'All marked parts and the speed will be removed.',
   'Выйти из монтажа?': 'Leave editing?',
   'Отмеченные части и скорость не сохранятся.': 'The marked parts and speed will not be saved.',
-  'Выйти': 'Leave',
   'Создать видео': 'Create video',
   'Начинаем…': 'Starting…',
   'Не получилось начать. Попробуйте ещё раз.': 'Could not start. Try again.',

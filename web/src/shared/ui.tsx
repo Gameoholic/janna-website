@@ -77,7 +77,7 @@ export function ConfirmDialog(props: {
 
 /**
  * The left slot is «Назад» on a nested screen, or — when there's nowhere to
- * go back to — a «Возврат» button (P12) back to the app chooser at «/».
+ * go back to — a «Выйти» button (P12) back to the app chooser at «/».
  * She's never stranded without a way back (Section 9).
  */
 export function TopBar(props: { title: string; onBack?: () => void; right?: ReactNode }) {
@@ -93,10 +93,10 @@ export function TopBar(props: { title: string; onBack?: () => void; right?: Reac
           onClick={() => {
             window.location.href = '/';
           }}
-          aria-label={t('Возврат')}
           style={{ minWidth: 56 }}
         >
           <IconBack size={26} />
+          {t('Выйти')}
         </button>
       )}
       <h1>{props.title}</h1>
