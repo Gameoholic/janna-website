@@ -1,0 +1,26 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	reverse_proxy app:8077 {
+		# Голос transcription and the edit-job endpoints stream progress over
+		# SSE (server/src/sse.ts). -1 disables response buffering so the ring/
+		# stop events reach the browser immediately instead of in batches —
+		# reminders are an alarm, and a buffered "stop" is a wrong alarm.
+		flush_interval -1
+	}
+
+	# No request-body cap is set on purpose. Cloudflare Tunnel's ~100MB limit
+	# is what forced chunked uploads (server/src/chunkedUpload.ts); going
+	# direct removes that ceiling, and her library already holds a 2.3GB video.
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

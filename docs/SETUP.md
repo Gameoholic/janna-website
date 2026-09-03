@@ -53,7 +53,12 @@ the DB (`settings.admin_secret`); the same key works after restarts.
 
 The panel is invisible from her apps — nothing links to it.
 
-## 3. Deploying on the Raspberry Pi (or any server)
+## 3. Deploying on the server
+
+> **Superseded 2026-09-03.** The Raspberry Pi is retired and the Cloudflare
+> Tunnel is gone; ingress is now Caddy + Let's Encrypt on a Hetzner VPS.
+> For the current deployment procedure see [MIGRATION.md](MIGRATION.md) and
+> [HANDOFF.md](HANDOFF.md). The sections below are kept for historical context.
 
 ```bash
 cp .env.example .env    # fill in token + origin + TZ

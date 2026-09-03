@@ -11,10 +11,12 @@ services:
       - UPDATER_TOKEN=${UPDATER_TOKEN:-}
     volumes:
       - ./data:/data
-    # Only needed for LAN access without the tunnel; cloudflared reaches the
-    # app over the compose network either way.
+    # Loopback only. The internet reaches the app through Caddy (TLS); this
+    # publish exists just for local debugging on the host. Dropping the
+    # 127.0.0.1 prefix would put plain HTTP on the public IP and bypass
+    # HTTPS entirely — which also breaks the `secure` device cookie.
     ports:
-      - "8077:8077"
+      - "127.0.0.1:8077:8077"
 
   # Powers the admin panel's "Deploy from GitHub" button. Kept separate from
   # `app` on purpose: it's the only thing that touches the Docker socket and
@@ -37,9 +39,28 @@ services:
     # No published port: reachable only from `app`, over the private compose
     # network, by service name.
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
+  # Terminates TLS and reverse-proxies to `app`. This replaces the Cloudflare
+  # Tunnel — the server is now reached directly on its public IP, so HTTPS is
+  # ours to provide. Caddy obtains and renews Let's Encrypt certificates by
+  # itself; SITE_DOMAIN must already resolve to this host or issuance fails.
+  caddy:
+    image: caddy:2-alpine
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN}
+      - ACME_EMAIL=${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Issued certificates live here. Losing this volume means re-issuing on
+      # every restart, which will hit Let's Encrypt's rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - app
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -30,7 +30,7 @@ const adminSecret = ensureAdminSecret();
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', true); // behind the Cloudflare Tunnel
+app.set('trust proxy', true); // behind Caddy, which terminates TLS
 app.use(cookieParser());
 // Documents can carry a few embedded (base64) photos and comfortably exceed
 // the 2mb general limit below — give that one path more headroom before the

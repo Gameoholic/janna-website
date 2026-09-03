@@ -1,14 +1,31 @@
 # NOTES FOR DANIEL - DO NOT DELETE
 
-ssh daniel@10.0.0.5
+## Server access (admin)
+
+The Raspberry Pi is RETIRED (it dropped off her Wi-Fi 2026-08-31 and was
+abandoned). Everything now runs on a Hetzner VPS.
+
+```bash
+ssh root@65.108.91.184
+cd /opt/janna-website
+```
+
+**Key-based only — there is no password.** Password authentication is disabled
+on the server on purpose; the private key at `C:\Users\Daniel\.ssh\id_ed25519`
+is the only way in. Do not re-enable passwords.
+
+- Losing that key locks you out. Back it up somewhere safe (password manager).
+- If you do get locked out: Hetzner Cloud console → the server → **Rescue**
+  gives console access without SSH.
+- To authorise another machine, append its `id_ed25519.pub` to
+  `~/.ssh/authorized_keys` on the server from a machine that already has access.
 
 admin website url: https://app.jannawebsite.online/dev/
 
-cd /opt/janna-website
-
-
-After git pull on the Pi (in /opt/janna-website):
+After git pull on the server (in /opt/janna-website):
 docker compose up -d --build
+
+Migration notes and the full runbook: docs/HANDOFF.md and docs/MIGRATION.md
 
 [20:54, 7/15/2026] Daniel: https://app.jannawebsite.online/setup/euPTP9a-JJ8prGMMfWciUoSbUsgEWKIFzOwrlpep0Sw
 [20:54, 7/15/2026] Daniel: טלפון
@@ -28,7 +45,8 @@ todo the above^
 grandm acomputer
 [20:54, 7/15/2026] Daniel: 10.0.0.5
 [20:54, 7/15/2026] Daniel: ssh daniel@10.0.0.5
-password: daniel
+(Pi credentials removed — box retired, and a password does not belong in git.
+ Server access is key-only, see "Server access (admin)" at the top.)
 
 
 
@@ -97,15 +115,23 @@ the dev page. `?lang=ru` switches back. (She always sees Russian.)
 
 ## 2. Deploy on a server
 
-This runs it on a real machine (e.g. a Raspberry Pi) with HTTPS, so it works
-on her phone and yours. Needs **Docker**.
+This runs it on a real machine (a rented VPS) with HTTPS, so it works on her
+phone and yours. Needs **Docker**.
 
-**Step 1 — set up a Cloudflare Tunnel** (free HTTPS, no port-forwarding)
+**Step 1 — point DNS at the server**
 
-1. In Cloudflare **Zero Trust → Networks → Tunnels**, create a tunnel (Docker).
-2. Copy its **token**.
-3. In its **Public Hostname** tab, add your hostname (e.g.
-   `babushka.example.com`) pointing to service `http://app:8077`.
+Add an `A` record for your hostname (e.g. `app.jannawebsite.online`) pointing
+to the server's public IP. Wait until it resolves before step 2:
+
+```bash
+dig +short app.jannawebsite.online     # must print the server IP, alone
+```
+
+Caddy proves domain ownership over HTTP to get a certificate. If the name does
+not resolve yet, issuance fails and Let's Encrypt rate-limits the retries.
+
+Open only 22, 80 and 443 on the firewall — the app itself is bound to
+`127.0.0.1:8077` and is reached only through Caddy.
 
 **Step 2 — configure and launch**
 
@@ -114,9 +140,10 @@ cp .env.example .env
 ```
 
 Edit `.env` and fill in:
-- `CLOUDFLARE_TUNNEL_TOKEN=` the token from step 1
-- `PUBLIC_ORIGIN=https://babushka.example.com` your hostname
-- `TZ=Europe/Moscow` her timezone
+- `SITE_DOMAIN=app.jannawebsite.online` the hostname Caddy serves (no scheme)
+- `ACME_EMAIL=` your address, for Let's Encrypt expiry warnings
+- `PUBLIC_ORIGIN=https://app.jannawebsite.online` same host, with scheme
+- `TZ=` her timezone (formats the dates in push notifications)
 
 Then:
 
@@ -136,7 +163,7 @@ docker compose logs app | grep "developer entry"
 ```
 
 Open that URL but on your live domain, i.e.
-`https://babushka.example.com/dev?key=THEKEY`. That's the dev page on the
+`https://app.jannawebsite.online/dev?key=THEKEY`. That is the dev page on the
 server.
 
 **Step 4 — connect your own device**
