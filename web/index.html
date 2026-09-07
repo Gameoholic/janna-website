@@ -18,24 +18,38 @@
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; padding: 24px;
     }
+    /* Sized with clamp() rather than fixed px: every max is the original
+       desktop value, so a wide screen renders exactly as it always has, while
+       a narrow one (a phone, and especially a phone with browser zoom turned
+       up — which shrinks the real CSS viewport well below 412px) scales the
+       padding, icon and gap down instead of pushing the label off the edge.
+       The label shrinks least: she needs it big, so the chrome gives way. */
     .wrap { width: 100%; max-width: 440px; text-align: center; }
-    h1 { font-size: 26px; margin: 0 0 24px; }
+    h1 { font-size: clamp(20px, 6vw, 26px); margin: 0 0 clamp(14px, 4vw, 24px); }
     a.tile {
-      display: flex; align-items: center; gap: 20px;
-      background: #fff; border-radius: 18px; padding: 20px 24px;
-      margin-bottom: 18px; text-decoration: none; color: #1D2430;
-      font-size: 26px; font-weight: 600;
+      display: flex; align-items: center; gap: clamp(12px, 4vw, 20px);
+      background: #fff; border-radius: 18px;
+      padding: clamp(12px, 3.5vw, 20px) clamp(14px, 4vw, 24px);
+      margin-bottom: clamp(12px, 3.5vw, 18px);
+      text-decoration: none; color: #1D2430;
+      font-size: clamp(18px, 5.5vw, 26px); font-weight: 600;
       box-shadow: 0 3px 14px rgba(29,36,48,0.18);
       border: 2px solid #C7BC9E;
+      text-align: left;
     }
     a.tile:active { border-color: #9AA4B2; }
-    a.tile img { width: 64px; height: 64px; border-radius: 14px; }
+    a.tile img {
+      width: clamp(44px, 14vw, 64px); height: clamp(44px, 14vw, 64px);
+      border-radius: 14px; flex: 0 0 auto;
+    }
+    /* Without these the label is a flex item that refuses to shrink, so a long
+       name ("Редактор танцев") runs past the tile and is clipped mid-word. */
+    a.tile span { min-width: 0; overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Мой Диск</h1>
-    <a class="tile" href="/video/"><img src="/icons/video-192.png" alt=""><span>Редактор танцев</span></a>
     <a class="tile" href="/files/"><img src="/icons/files-192.png" alt=""><span>Файлы</span></a>
     <a class="tile" href="/voice/"><img src="/icons/voice-192.png" alt=""><span>Голос</span></a>
   </div>

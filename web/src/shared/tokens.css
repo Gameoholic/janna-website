@@ -840,3 +840,56 @@ a { color: var(--accent); }
   .alarm-ok { min-height: 72px; min-width: 200px; max-width: 100%; font-size: 25px; }
   .alarm-snooze { min-height: 54px; font-size: 17px; padding: 0 20px; max-width: 100%; }
 }
+
+/* ---------- Very narrow effective viewport ----------
+ * Browser zoom shrinks the CSS viewport: her Chrome appears to be running
+ * around 150–175%, which turns a 412px phone into roughly 260px of usable
+ * width — far narrower than anything above was written for. That zoom is
+ * presumably deliberate so she can read the screen, so this tier deliberately
+ * does NOT shrink the text much. It takes the space out of the chrome —
+ * padding, gaps, icons, fixed minimums — so the words still fit.
+ */
+@media (max-width: 400px) {
+  :root {
+    --tap: 44px;
+    --tap-big: 50px;
+    --gap: 10px;
+    --radius: 12px;
+  }
+
+  body { font-size: 16px; }
+  h1 { font-size: 18px; }
+  h2 { font-size: 17px; }
+
+  .page { padding: 8px 8px 92px; }
+  .topbar { gap: 8px; min-height: 46px; padding: 4px 0 8px; }
+  .card { padding: 10px; }
+
+  .btn { font-size: 16px; padding: 8px 10px; gap: 6px; }
+  .btn-big { font-size: 16px; padding: 8px 12px; }
+  .btn-compact { font-size: 14px; padding: 6px 8px; }
+
+  .input, .textarea { font-size: 16px; padding: 8px 10px; }
+  .list-row { font-size: 16px; gap: 8px; padding: 6px 8px; min-height: 52px; }
+  .side-row { font-size: 16px; padding-left: 8px; padding-right: 10px; }
+
+  .dialog { padding: 12px; }
+  .dialog-overlay { padding: 8px; }
+
+  .file-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+  .file-thumb, .file-thumb-placeholder { height: 80px; }
+
+  .cal-grid { gap: 4px; }
+  .cal-day { min-height: 38px; font-size: 15px; }
+
+  .ctx-menu { min-width: 0; }
+  .toast { bottom: 84px; font-size: 15px; padding: 10px 14px; }
+
+  /* A fixed min-width here is wider than the whole screen once zoomed. */
+  .alarm-overlay { padding: 12px; }
+  .alarm-time { font-size: 38px; }
+  .alarm-text { font-size: 20px; }
+  .alarm-date { font-size: 15px; margin-bottom: 16px; }
+  .alarm-ok { min-width: 0; width: 100%; min-height: 64px; font-size: 22px; }
+  .alarm-snooze { min-width: 0; width: 100%; padding: 0 12px; }
+}
