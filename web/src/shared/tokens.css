@@ -757,3 +757,86 @@ h2 { font-size: 21px; }
 }
 
 a { color: var(--accent); }
+
+/* ---------- Phone (P6) ----------
+ * Everything above this block is tuned for the desktop layout and is left
+ * exactly as it was. On the Galaxy A31 (~412px) those same absolute px sizes
+ * are proportionally enormous: oversized buttons, rows wider than the screen
+ * (silently clipped by the overflow-x guard on body, which hides overflow
+ * rather than preventing it), and far more scrolling than there is content.
+ * 899px matches useIsPhone() in shared/ui.tsx so CSS and JS agree on "phone".
+ */
+@media (max-width: 899px) {
+  :root {
+    --tap: 48px;      /* still well above a comfortable minimum */
+    --tap-big: 56px;
+    --gap: 14px;      /* kept generous — adjacent targets must not mis-tap */
+    --radius: 14px;
+  }
+
+  body { font-size: 17px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 18px; }
+
+  .page { padding: 12px 12px 104px; }
+  .topbar { min-height: 52px; padding: 6px 0 10px; }
+  .card { padding: 14px; }
+
+  .btn { font-size: 17px; padding: 10px 14px; gap: 8px; }
+  .btn-big { font-size: 18px; padding: 10px 16px; border-radius: 16px; }
+  .btn-compact { min-height: 44px; font-size: 15px; padding: 8px 12px; }
+
+  /* A long Russian label wraps inside its button instead of pushing the row
+     past the screen edge and being clipped. */
+  .btn { white-space: normal; }
+
+  /* The actual cause of the cut-off text: flex children default to
+     min-width:auto and refuse to shrink, so a row that doesn't fit runs off
+     the right edge and body's overflow-x:hidden quietly cuts it. Letting them
+     shrink (and letting a row wrap only when it would otherwise overflow)
+     means nothing needs clipping in the first place. */
+  .row > *, .row-wrap > *, .topbar > *, .bottombar > *, .list-row > * { min-width: 0; }
+  .row { flex-wrap: wrap; }
+
+  .input, .textarea { font-size: 17px; padding: 10px 12px; }
+
+  .list-row { font-size: 17px; min-height: 58px; gap: 10px; padding: 8px 10px; }
+  .side-row { font-size: 17px; min-height: 52px; }
+
+  /* Mobile Chrome's 100vh spans the area behind the URL bar, so a 100vh-tall
+     dialog runs off the bottom of what she can actually see and its buttons
+     need a scroll to reach. dvh is the real visible viewport; the vh line
+     stays first as the fallback for anything that doesn't know dvh. */
+  .dialog-overlay { padding: 12px; }
+  .dialog {
+    padding: 16px;
+    border-radius: 16px;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .dialog-full {
+    height: calc(100vh - 24px);
+    height: calc(100dvh - 24px);
+  }
+
+  .file-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .file-thumb, .file-thumb-placeholder { height: 96px; }
+  .file-name { font-size: 15px; min-height: 40px; }
+
+  .cal-day { min-height: 42px; font-size: 16px; }
+  .cal-head { font-size: 13px; }
+
+  .ctx-item { font-size: 17px; min-height: 48px; }
+  .toast { bottom: 92px; font-size: 16px; padding: 12px 18px; }
+  .badge { font-size: 15px; }
+  .spinner { width: 36px; height: 36px; border-width: 4px; }
+
+  /* Alarm takeover stays as loud and unmissable as it is on desktop (P9) —
+     just sized so the time, the text and «OK» all fit without scrolling. */
+  .alarm-overlay { padding: 18px; }
+  .alarm-time { font-size: 46px; }
+  .alarm-text { font-size: 23px; margin: 12px 0 6px; }
+  .alarm-date { font-size: 17px; margin-bottom: 22px; }
+  .alarm-ok { min-height: 72px; min-width: 200px; max-width: 100%; font-size: 25px; }
+  .alarm-snooze { min-height: 54px; font-size: 17px; padding: 0 20px; max-width: 100%; }
+}
