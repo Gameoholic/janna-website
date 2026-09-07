@@ -32,7 +32,7 @@ function fmtElapsed(sec: number): string {
 
 export function VoiceApp() {
   const [stage, setStage] = useState<Stage>('idle');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => localStorage.getItem('voice_text') || '');
   const [elapsedSec, setElapsedSec] = useState(0);
   const [canShare, setCanShare] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -42,6 +42,10 @@ export function VoiceApp() {
   const chunksRef = useRef<Blob[]>([]);
   const elapsedTimerRef = useRef<number | null>(null);
   const pollTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('voice_text', text);
+  }, [text]);
 
   useEffect(() => {
     setCanShare(typeof navigator.share === 'function');
