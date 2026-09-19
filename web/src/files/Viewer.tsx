@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState } from 'react';
+import { CSSProperties, PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, FileInfo, PathPart } from '../shared/api';
 import { ConfirmDialog, Dialog, copyText, showToast } from '../shared/ui';
 import { Picker } from '../shared/Picker';
@@ -157,7 +157,7 @@ export function Viewer(props: {
           </button>
         ) : null}
         {file.kind === 'image' ? (
-          <img src={mediaUrl} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10 }} />
+          <ZoomableImage src={mediaUrl} alt={file.name} />
         ) : file.kind === 'video' || file.kind === 'audio' ? null : (
           <div className="center">
             <p>{t('Этот файл нельзя показать здесь.')}</p>
@@ -230,6 +230,160 @@ export function Viewer(props: {
         onConfirm={() => void doDelete()}
         onCancel={() => setDeleteOpen(false)}
       />
+    </div>
+  );
+}
+
+/**
+ * Photo view with plain scroll-wheel zoom — no Ctrl held down: on her
+ * Windows laptop the wheel alone zooms, the way a photo is expected to
+ * behave everywhere else. The wheel listener is attached by hand (not via
+ * onWheel) because React registers wheel handlers as passive, where
+ * preventDefault is ignored and the page would scroll underneath instead.
+ * Once zoomed she can drag the photo to look around, and one big Russian
+ * button puts it back to normal size.
+ */
+const MAX_ZOOM = 6;
+
+function ZoomableImage(props: { src: string; alt: string }) {
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ id: number; x: number; y: number } | null>(null);
+
+  const reset = useCallback(() => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  // A different photo always opens at normal size.
+  useEffect(() => reset(), [props.src, reset]);
+
+  /** Keeps the photo from being dragged or zoomed off into empty space. */
+  const clamp = useCallback((x: number, y: number, z: number) => {
+    const box = boxRef.current;
+    const img = imgRef.current;
+    if (!box || !img) return { x, y };
+    // offsetWidth/Height are the laid-out size, unaffected by the transform.
+    const maxX = Math.max(0, (img.offsetWidth * z - box.clientWidth) / 2);
+    const maxY = Math.max(0, (img.offsetHeight * z - box.clientHeight) / 2);
+    return {
+      x: Math.min(maxX, Math.max(-maxX, x)),
+      y: Math.min(maxY, Math.max(-maxY, y)),
+    };
+  }, []);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // deltaMode 1 means the browser is reporting lines, not pixels.
+      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      const step = Math.min(2, Math.max(0.5, Math.exp(-delta * 0.0015)));
+      const rect = box.getBoundingClientRect();
+      // Pointer position relative to the centre of the photo area, so the
+      // spot under the cursor stays under the cursor while zooming.
+      const px = e.clientX - (rect.left + rect.width / 2);
+      const py = e.clientY - (rect.top + rect.height / 2);
+      setZoom((z) => {
+        const next = Math.min(MAX_ZOOM, Math.max(1, z * step));
+        if (next === z) return z;
+        const k = next / z;
+        setOffset((o) =>
+          next === 1
+            ? { x: 0, y: 0 }
+            : clamp(px * (1 - k) + k * o.x, py * (1 - k) + k * o.y, next),
+        );
+        return next;
+      });
+    };
+    box.addEventListener('wheel', onWheel, { passive: false });
+    return () => box.removeEventListener('wheel', onWheel);
+  }, [clamp]);
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (zoom === 1) return;
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    drag.current = { id: d.id, x: e.clientX, y: e.clientY };
+    setOffset((o) => clamp(o.x + dx, o.y + dy, zoom));
+  };
+
+  const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (drag.current && drag.current.id === e.pointerId) drag.current = null;
+  };
+
+  return (
+    <div
+      ref={boxRef}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        // Only take over the touch gestures once she has zoomed in, so the
+        // phone keeps its own familiar pinch-zoom at normal size.
+        touchAction: zoom > 1 ? 'none' : 'auto',
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onDoubleClick={reset}
+    >
+      <img
+        ref={imgRef}
+        src={props.src}
+        alt={props.alt}
+        draggable={false}
+        style={{
+          maxWidth: '100%',
+          maxHeight: '100%',
+          borderRadius: 10,
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+          transformOrigin: 'center center',
+          cursor: zoom > 1 ? 'move' : 'default',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+        }}
+      />
+      {zoom > 1 ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 12,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <button
+            className="btn btn-compact"
+            style={{
+              background: 'rgba(20,20,20,0.7)',
+              border: '2px solid rgba(255,255,255,0.85)',
+              color: '#fff',
+              boxShadow: 'none',
+            }}
+            onClick={reset}
+          >
+            {t('Обычный размер')}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

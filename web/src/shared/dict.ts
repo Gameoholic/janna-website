@@ -178,6 +178,7 @@ export const EN: Record<string, string> = {
   'Удалить файл?': 'Delete file?',
   '«{name}» будет удалён.': '“{name}” will be deleted.',
   'Переименовать файл': 'Rename file',
+  'Обычный размер': 'Normal size',
 
   // ---- files: documents (simple notes) ----
   'Добавить': 'Add',
