@@ -1,0 +1,316 @@
+/*
+ * Google-Docs lookalike document editor (her old habit). Colours and
+ * proportions follow Docs' current look; the page itself is always light,
+ * like a sheet of paper, whatever the app theme.
+ */
+
+.gd-root {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  background: #f9fbfd;
+  color: #1f1f1f;
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+/* ---- title row ---- */
+
+.gd-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  min-width: 0;
+}
+.gd-glyph { flex: 0 0 auto; margin: 0 4px; }
+.gd-titlebox { flex: 1 1 auto; min-width: 0; }
+.gd-title {
+  display: block;
+  max-width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 18px;
+  color: #1f1f1f;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.gd-title:hover { border-color: #747775; }
+.gd-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  padding: 0 7px;
+  font-size: 13px;
+  color: #444746;
+}
+.gd-round {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #444746;
+  cursor: pointer;
+}
+.gd-round:hover { background: rgba(68, 71, 70, 0.08); }
+.gd-share {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px 0 16px;
+  border: 0;
+  border-radius: 22px;
+  background: #c2e7ff;
+  color: #001d35;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.gd-share:hover { background: #b3d7ef; }
+.gd-phone .gd-share { width: 44px; padding: 0; justify-content: center; }
+
+.gd-moved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #e6f4ea;
+  color: #137333;
+  font-size: 15px;
+}
+
+/* ---- toolbar ---- */
+
+.gd-toolbar-wrap { padding: 4px 8px 8px; }
+.gd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 44px;
+  padding: 3px 10px;
+  border-radius: 24px;
+  background: #edf2fa;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.gd-toolbar::-webkit-scrollbar { display: none; }
+.gd-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #444746;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.gd-btn:hover { background: rgba(68, 71, 70, 0.1); }
+.gd-btn.on { background: #d3e3fd; color: #041e49; }
+.gd-dd { justify-content: space-between; padding: 0 2px 0 8px; }
+.gd-dd-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gd-sep { flex: 0 0 auto; width: 1px; height: 22px; margin: 0 5px; background: #c7c7c7; }
+.gd-size {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 28px;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  background: transparent;
+  color: #1f1f1f;
+  font: inherit;
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+  caret-color: auto;
+}
+.gd-size:focus { border: 2px solid #0b57d0; }
+.gd-colorbtn { flex-direction: column; gap: 0; padding-top: 3px; }
+.gd-colorbar { display: block; width: 18px; height: 4px; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15); }
+
+.gd-phone .gd-toolbar { min-height: 50px; gap: 6px; }
+.gd-phone .gd-btn { min-width: 42px; height: 42px; }
+.gd-phone .gd-size { height: 36px; width: 46px; font-size: 16px; }
+
+/* ---- dropdowns ---- */
+
+.gd-pop {
+  position: fixed;
+  z-index: 200;
+  min-width: 140px;
+  max-width: calc(100vw - 16px);
+  padding: 6px 0;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px rgba(60, 64, 67, 0.3);
+}
+.gd-pop-item {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 18px;
+  border: 0;
+  background: transparent;
+  color: #1f1f1f;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gd-pop-item:hover { background: #f1f3f4; }
+.gd-pop-item.on { background: #e8f0fe; }
+.gd-style-h1 { font-family: Arial, sans-serif; font-size: 22px !important; }
+.gd-style-h2 { font-family: Arial, sans-serif; font-size: 18px !important; }
+.gd-style-h3 { font-family: Arial, sans-serif; font-size: 16px !important; color: #434343 !important; }
+.gd-reset { margin-bottom: 4px; }
+.gd-swatch-row { display: flex; gap: 4px; padding: 0 12px; margin-bottom: 4px; }
+.gd-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.gd-swatch:hover { box-shadow: 0 0 0 2px #1a73e8; }
+.gd-phone .gd-swatch { width: 28px; height: 28px; }
+.gd-align-row { display: flex; gap: 4px; padding: 0 8px; }
+
+/* ---- canvas + page ---- */
+
+.gd-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid #e1e3e1;
+}
+.gd-ruler {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  min-width: max-content;
+  padding: 2px 0;
+  background: #f9fbfd;
+  border-bottom: 1px solid #e1e3e1;
+}
+.gd-sizer { margin: 12px auto 48px; }
+.gd-phone .gd-sizer { margin: 0; }
+.gd-page {
+  box-sizing: border-box;
+  transform-origin: 0 0;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.15;
+  outline: none;
+  word-wrap: break-word;
+  caret-color: #000;
+  box-shadow: 0 0 0 0.75pt #d1d1d1, 0 1px 3px rgba(60, 64, 67, 0.15);
+}
+.gd-phone .gd-page { box-shadow: none; }
+.gd-page p { margin: 0; }
+.gd-page h1 { margin: 0; padding: 20pt 0 6pt; font-size: 20pt; font-weight: 400; }
+.gd-page h2 { margin: 0; padding: 18pt 0 6pt; font-size: 16pt; font-weight: 400; }
+.gd-page h3 { margin: 0; padding: 16pt 0 4pt; font-size: 14pt; font-weight: 400; color: #434343; }
+.gd-page ul, .gd-page ol { margin: 0; padding-left: 36pt; }
+.gd-page img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: bottom;
+  cursor: move;
+  -webkit-user-drag: none;
+  /* A swipe over an unselected picture on the phone still scrolls. */
+  touch-action: pan-x pan-y;
+}
+
+/* ---- selected picture: frame, handles, floating bar ---- */
+
+.gd-imgsel {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  border: 2px solid #1a73e8;
+  cursor: move;
+  touch-action: none;
+}
+.gd-dragging .gd-imgsel { pointer-events: none; opacity: 0.4; }
+.gd-dragging .gd-imgbar { display: none; }
+.gd-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  background: #1a73e8;
+  box-shadow: 0 0 0 1px #1a73e8;
+  touch-action: none;
+}
+/* Larger (invisible) grab area around each handle for fingers. */
+.gd-handle::after { content: ''; position: absolute; inset: -12px; }
+.gd-nw { left: -8px; top: -8px; cursor: nwse-resize; }
+.gd-ne { right: -8px; top: -8px; cursor: nesw-resize; }
+.gd-sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
+.gd-se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+.gd-phone .gd-handle { width: 20px; height: 20px; }
+.gd-phone .gd-nw, .gd-phone .gd-sw { left: -11px; }
+.gd-phone .gd-ne, .gd-phone .gd-se { right: -11px; }
+.gd-phone .gd-nw, .gd-phone .gd-ne { top: -11px; }
+.gd-phone .gd-sw, .gd-phone .gd-se { bottom: -11px; }
+
+.gd-imgbar {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  padding: 4px 6px 4px 12px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px rgba(60, 64, 67, 0.3);
+}
+.gd-imgbar-hint { flex: 1 1 auto; min-width: 0; margin-right: 6px; font-size: 14px; color: #444746; }
+
+.gd-ghost {
+  position: fixed;
+  z-index: 300;
+  opacity: 0.6;
+  pointer-events: none;
+  border: 2px solid #1a73e8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.gd-dropline {
+  position: fixed;
+  z-index: 301;
+  width: 3px;
+  background: #1a73e8;
+  pointer-events: none;
+}

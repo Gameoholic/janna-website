@@ -9,42 +9,59 @@ import { log } from '../log';
 import { FileRow, fileToJson, uniqueNameInFolder } from './files';
 
 /**
- * Simple documents/notes (kind = 'document'): a Google-Keep-simple note —
- * bold, one text color at a time, pasted images — replacing her old Google
- * Docs habit. The "binary on disk" for a document is one sanitized HTML
- * file; pasted images are embedded inline as base64 data URIs, so the file
- * stays fully self-contained (no separate asset table, nothing to garbage
- * collect when the document is deleted).
+ * Documents (kind = 'document'): a Google-Docs lookalike — her old habit —
+ * with only the basic toolbar (paragraph style, font size, bold / italic /
+ * underline, text + highlight color, alignment, lists, pasted images). The
+ * "binary on disk" for a document is one sanitized HTML file; pasted images
+ * are embedded inline as base64 data URIs, so the file stays fully
+ * self-contained (no separate asset table, nothing to garbage collect when
+ * the document is deleted).
  *
- * The allowlist below is deliberately narrow — it must only ever admit what
- * the editor itself produces (bold, a text color, an embedded image), never
- * arbitrary pasted-in markup. That's what keeps this safe to also re-render
- * on the public share page (see routes/share.ts).
+ * The allowlist below must only ever admit what that toolbar itself
+ * produces, never arbitrary pasted-in markup. That's what keeps this safe to
+ * also re-render on the public share page (see routes/share.ts).
  */
 
 const ALLOWED_IMAGE_SRC = /^data:image\/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/;
+const COLOR = [
+  /^#(?:[0-9a-f]{3}){1,2}$/i,
+  /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*[\d.]+\s*)?\)$/i,
+  /^transparent$/i,
+];
+const BLOCK_ATTRS = ['style', { name: 'align', multiple: false, values: ['left', 'center', 'right', 'justify'] }];
 
 export function sanitizeDocumentHtml(raw: string): string {
   return sanitizeHtml(raw || '', {
-    allowedTags: ['b', 'strong', 'span', 'div', 'br', 'img'],
+    allowedTags: ['b', 'strong', 'i', 'em', 'u', 'span', 'div', 'p', 'br', 'img', 'ul', 'ol', 'li', 'h1', 'h2', 'h3'],
     allowedAttributes: {
       span: ['style'],
-      img: ['src'],
+      div: BLOCK_ATTRS,
+      p: BLOCK_ATTRS,
+      h1: BLOCK_ATTRS,
+      h2: BLOCK_ATTRS,
+      h3: BLOCK_ATTRS,
+      li: BLOCK_ATTRS,
+      img: ['src', 'style'],
     },
     allowedStyles: {
-      span: {
-        color: [/^#(?:[0-9a-f]{3}){1,2}$/i, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i],
+      '*': {
+        color: COLOR,
+        'background-color': COLOR,
+        'font-size': [/^\d{1,3}(?:\.\d+)?(?:pt|px)$/],
+        'text-align': [/^(?:left|center|right|justify|start|end)$/],
       },
+      img: { width: [/^\d{1,4}(?:\.\d+)?px$/] },
     },
     allowedSchemesByTag: { img: ['data'] },
     transformTags: {
       strong: 'b',
-      // execCommand('foreColor') has historically produced <font color="…">
-      // in some engines — fold it into the same <span style="color:…"> shape
-      // as the primary path so one allowlist covers both.
+      em: 'i',
+      // execCommand('foreColor') produces <font color="…">, and the editor's
+      // font-size tool leaves <font style="font-size:…"> — fold both into a
+      // <span style="…"> so one allowlist covers them.
       font: (_tag, attribs) => ({
         tagName: 'span',
-        attribs: { style: attribs.color ? `color:${attribs.color}` : '' },
+        attribs: { style: [attribs.color ? `color:${attribs.color}` : '', attribs.style || ''].filter(Boolean).join(';') },
       }),
     },
     exclusiveFilter: (frame) => frame.tag === 'img' && !ALLOWED_IMAGE_SRC.test(frame.attribs.src || ''),

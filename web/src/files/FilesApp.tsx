@@ -123,6 +123,19 @@ export function FilesApp() {
     void loadFiles(currentId);
   }, [currentId, loadFiles]);
 
+  // A folder is always selected when any exist: the first one on open, and on
+  // desktop again whenever the selection disappears (e.g. its folder was
+  // deleted). On the phone the folder list is the "back" screen, so there
+  // only the first open auto-selects.
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (state.folders.length === 0) return;
+    if (currentId !== null && byId.has(currentId)) return;
+    if (isPhone && autoSelectedRef.current) return;
+    autoSelectedRef.current = true;
+    setCurrentId(state.folders[0].id);
+  }, [state.folders, currentId, byId, isPhone]);
+
   // Once the target folder's files finish loading, scroll the highlighted
   // search result into view.
   useEffect(() => {

@@ -143,8 +143,11 @@ ${file.kind === 'video' ? `<meta property="og:video" content="${base}/media">\n<
   h1{font-size:20px;font-weight:600;margin:16px 8px;word-break:break-word}
   .audio-wrap{padding:32px 16px}
   .audio-icon{font-size:72px;line-height:1}
-  .doc-content{background:#fff;color:#1f2937;text-align:left;padding:20px;border-radius:12px;line-height:1.5;font-size:17px;word-break:break-word;box-shadow:0 3px 14px rgba(29,36,48,0.18)}
-  .doc-content img{max-width:100%;border-radius:8px;display:block;margin:8px 0}
+  .doc-content{background:#fff;color:#000;text-align:left;padding:24px;font-family:Arial,Helvetica,sans-serif;line-height:1.3;font-size:16px;word-break:break-word;box-shadow:0 1px 3px rgba(60,64,67,0.3)}
+  .doc-content p,.doc-content h1,.doc-content h2,.doc-content h3{margin:0}
+  .doc-content h1{font-size:1.8em;font-weight:400}.doc-content h2{font-size:1.45em;font-weight:400}.doc-content h3{font-size:1.25em;font-weight:400;color:#434343}
+  .doc-content ul,.doc-content ol{margin:0;padding-left:2.2em}
+  .doc-content img{max-width:100%;height:auto;vertical-align:bottom}
   a.dl{display:inline-block;margin-top:12px;padding:14px 28px;background:#2563eb;color:#fff;text-decoration:none;border-radius:12px;font-size:18px}
 </style>
 </head><body>
