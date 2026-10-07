@@ -84,16 +84,15 @@ export function TopBar(props: { title: string; onBack?: () => void; right?: Reac
   return (
     <div className="topbar">
       {props.onBack ? (
-        <button className="btn btn-ghost" onClick={props.onBack} aria-label={t('Назад')} style={{ minWidth: 56 }}>
+        <button className="btn btn-ghost topbar-btn" onClick={props.onBack} aria-label={t('Назад')}>
           <IconBack size={26} />
         </button>
       ) : (
         <button
-          className="btn btn-ghost"
+          className="btn btn-ghost topbar-btn"
           onClick={() => {
             window.location.href = '/';
           }}
-          style={{ minWidth: 56 }}
         >
           <IconBack size={26} />
           {t('Выйти')}

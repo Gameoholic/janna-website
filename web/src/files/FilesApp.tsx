@@ -441,38 +441,43 @@ export function FilesApp() {
       onClick={() => setViewer(file)}
       onContextMenu={(e) => menu.openFromEvent(e, fileMenuItems(file))}
     >
-      <div style={{ position: 'relative' }}>
+      {/* Thumb / text / menu are three separate children of the card so the
+          phone tier can lay the same card out as a horizontal row (thumbnail
+          left, name right) without touching the desktop stack. */}
+      <div className="file-thumb-wrap">
         {file.hasThumb ? (
           <img className="file-thumb" src={`/api/thumb/${file.id}`} alt="" loading="lazy" />
         ) : (
           <div className="file-thumb-placeholder">{kindIcon(file, 38)}</div>
         )}
-        <button
-          className="row-menu-btn card-menu-btn"
-          aria-label={t('Действия')}
-          onClick={(e) => menu.openFromButton(e, fileMenuItems(file))}
+      </div>
+      <div className="file-text">
+        <div className="file-name">{displayName(file.name)}</div>
+        <div
+          className="file-meta muted small num"
+          style={
+            file.kind === 'document'
+              ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+              : undefined
+          }
         >
-          <IconMore size={22} />
-        </button>
+          {file.kind === 'document' ? (
+            file.snippet || t('Пустой документ')
+          ) : (
+            <>
+              {file.durationMs ? `${fmtDuration(file.durationMs)} · ` : ''}
+              {fmtSize(file.size)}
+            </>
+          )}
+        </div>
       </div>
-      <div className="file-name">{displayName(file.name)}</div>
-      <div
-        className="muted small num"
-        style={
-          file.kind === 'document'
-            ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
-            : undefined
-        }
+      <button
+        className="row-menu-btn card-menu-btn"
+        aria-label={t('Действия')}
+        onClick={(e) => menu.openFromButton(e, fileMenuItems(file))}
       >
-        {file.kind === 'document' ? (
-          file.snippet || t('Пустой документ')
-        ) : (
-          <>
-            {file.durationMs ? `${fmtDuration(file.durationMs)} · ` : ''}
-            {fmtSize(file.size)}
-          </>
-        )}
-      </div>
+        <IconMore size={22} />
+      </button>
     </div>
   );
 
@@ -620,7 +625,7 @@ export function FilesApp() {
           }
           right={
             !searchOpen && state.folders.length > 0 ? (
-              <button className="btn btn-ghost" style={{ minWidth: 56 }} aria-label={t('Поиск')} onClick={() => setSearchOpen(true)}>
+              <button className="btn btn-ghost topbar-btn" aria-label={t('Поиск')} onClick={() => setSearchOpen(true)}>
                 <IconSearch size={24} />
               </button>
             ) : null

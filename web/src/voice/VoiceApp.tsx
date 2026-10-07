@@ -148,41 +148,38 @@ export function VoiceApp() {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 560, paddingBottom: 24 }}>
+    <div className="page voice-page">
       <TopBar title={t('Голос')} />
-      <div className="stack swap-enter">
-        <div className="card center" style={{ padding: '18px 20px' }}>
+      <div className="stack swap-enter voice-body">
+        <div className="card center voice-card">
           <button
-            className={`btn btn-big ${stage === 'recording' ? 'btn-danger' : 'btn-primary'}`}
-            style={{ width: 80, height: 80, borderRadius: '50%', margin: '0 auto' }}
+            className={`btn btn-big voice-mic ${stage === 'recording' ? 'btn-danger' : 'btn-primary'}`}
             onClick={toggleRecord}
             disabled={stage === 'transcribing'}
             aria-label={stage === 'recording' ? t('Остановить запись') : t('Начать запись')}
           >
             {stage === 'recording' ? <IconStop size={30} /> : <IconMic size={30} />}
           </button>
-          <p style={{ marginTop: 10, fontSize: 18 }}>
+          <p className="voice-hint">
             {stage === 'recording'
               ? t('Идёт запись… {t}', { t: fmtElapsed(elapsedSec) })
               : stage === 'transcribing'
                 ? t('Распознаём речь…')
                 : t('Нажмите и говорите')}
           </p>
-          {stage === 'transcribing' ? <div className="spinner" style={{ margin: '10px auto 0' }} /> : null}
+          {stage === 'transcribing' ? <div className="spinner voice-spinner" /> : null}
         </div>
 
         <textarea
-          className="input"
-          style={{ minHeight: 130, fontSize: 17, lineHeight: 1.5, resize: 'vertical' }}
+          className="input voice-text"
           placeholder={t('Здесь появится распознанный текст. Его можно редактировать.')}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
 
-        <div className="row-wrap">
+        <div className="row-wrap voice-actions">
           <button
             className="btn btn-primary btn-big"
-            style={{ flex: '1 1 auto' }}
             disabled={!text.trim()}
             onClick={() => void copyText(text).then((ok) => showToast(ok ? t('Скопировано.') : t('Не получилось скопировать.')))}
           >
@@ -191,7 +188,6 @@ export function VoiceApp() {
           {canShare ? (
             <button
               className="btn btn-soft btn-big"
-              style={{ flex: '1 1 auto' }}
               disabled={!text.trim()}
               onClick={() => void navigator.share({ text }).catch(() => {})}
             >
@@ -199,7 +195,7 @@ export function VoiceApp() {
             </button>
           ) : null}
         </div>
-        <button className="btn btn-ghost btn-block" disabled={!text.trim()} onClick={() => setResetConfirm(true)}>
+        <button className="btn btn-ghost btn-block voice-clear" disabled={!text.trim()} onClick={() => setResetConfirm(true)}>
           {t('Очистить')}
         </button>
       </div>

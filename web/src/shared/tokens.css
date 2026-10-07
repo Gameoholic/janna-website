@@ -867,3 +867,148 @@ a { color: var(--accent); }
   .alarm-ok { min-width: 0; width: 100%; min-height: 64px; font-size: 22px; }
   .alarm-snooze { min-width: 0; width: 100%; padding: 0 12px; }
 }
+
+/* ---------- Phone-only layout (desktop is deliberately untouched) ----------
+ * Everything below either defines a new class whose DESKTOP values reproduce
+ * exactly what an inline style used to do, or lives inside a media query.
+ * Nothing here changes a wide screen.
+ */
+
+/* Topbar back/«Выйти»/search buttons: a shared class so the phone tiers can
+   shrink them (they used to carry an inline min-width that CSS couldn't
+   reach). 56px is the desktop value they had. */
+.topbar-btn { min-width: 56px; }
+
+/* The file card's three parts. On desktop they stack exactly as before:
+   thumbnail on top, name, meta — with the ⋯ handle floating over the
+   thumbnail's top-right corner (.file-card is already position:relative). */
+.file-thumb-wrap { position: relative; }
+
+/* Голос: the former inline styles, unchanged in value. */
+.page.voice-page { max-width: 560px; padding-bottom: 24px; }
+.voice-card { padding: 18px 20px; }
+.voice-mic { width: 80px; height: 80px; border-radius: 50%; margin: 0 auto; }
+.voice-hint { margin-top: 10px; font-size: 18px; }
+.voice-spinner { margin: 10px auto 0; }
+.voice-text { min-height: 130px; font-size: 17px; line-height: 1.5; resize: vertical; }
+.voice-actions > .btn { flex: 1 1 auto; }
+
+@media (max-width: 899px) {
+  /* .btn{white-space:normal} above lets long labels wrap inside a button —
+     right for «Загрузить файлы», wrong for the topbar, where it broke «Выйти»
+     into «ВЫЙ / ТИ» and ate half the header. */
+  .topbar .btn { white-space: nowrap; }
+  .topbar-btn { min-width: 48px; padding-left: 12px; padding-right: 12px; }
+
+  /* Голос on one screen (she shouldn't have to scroll to reach «Копировать»):
+     the page is exactly as tall as the visible viewport and the text box is
+     the only thing that stretches, so the mic, the three buttons and the text
+     always fit together. */
+  .page.voice-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .voice-page .topbar { flex: 0 0 auto; }
+  .voice-body { flex: 1 1 auto; min-height: 0; }
+  .voice-text { flex: 1 1 auto; min-height: 72px; font-size: 16px; resize: none; }
+  .voice-card { padding: 10px 12px; }
+  .voice-mic { width: 64px; height: 64px; min-height: 64px; padding: 0; }
+  .voice-hint { margin: 8px 0 0; font-size: 16px; }
+  .voice-spinner { margin: 8px auto 0; }
+}
+
+@media (max-width: 400px) {
+  /* One 80px-tall thumbnail per row meant a screen and a half per file
+     (see the photo of her phone). The same card laid out as a row —
+     thumbnail, name + size, ⋯ — fits six, and it reads like the folder list
+     she just came from, which is how the desktop sidebar reads too. */
+  .file-grid { display: flex; flex-direction: column; gap: 8px; }
+  .file-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    padding: 6px;
+    min-height: 56px;
+  }
+  .file-thumb-wrap { flex: 0 0 auto; }
+  .file-thumb, .file-thumb-placeholder { width: 64px; height: 48px; border-radius: 8px; }
+  .file-text { flex: 1 1 auto; min-width: 0; }
+  .file-name { padding: 0; min-height: 0; font-size: 15px; }
+  .file-meta { font-size: 13px; }
+  /* The handle is no longer floating over a thumbnail — it sits at the end of
+     the row, far enough from the card's tap area not to be hit by accident. */
+  .row-menu-btn.card-menu-btn {
+    position: static;
+    flex: 0 0 auto;
+    min-width: 42px;
+    min-height: 42px;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+/* ---------- Her phone, as it is actually configured ----------
+ * Chrome's page zoom on her Galaxy A31 is turned up far enough that the real
+ * CSS viewport is roughly 200px, not 412 — which is why the 400px tier above
+ * still rendered one giant file per screen and wrapped «Выйти» in half.
+ * The zoom is there so she can read the screen, so this tier keeps the text
+ * big and takes the space out of everything that isn't text: padding, gaps,
+ * icon wells, fixed minimum widths.
+ */
+@media (max-width: 340px) {
+  :root {
+    --tap: 40px;
+    --tap-big: 46px;
+    --gap: 8px;
+    --radius: 10px;
+  }
+
+  body { font-size: 15px; }
+  h1 { font-size: 16px; }
+  h2 { font-size: 16px; }
+
+  .page { padding: 6px 6px 76px; }
+  .card { padding: 8px; }
+
+  .topbar { gap: 4px; min-height: 40px; padding: 2px 0 6px; }
+  .topbar-btn { min-width: 0; min-height: 38px; padding: 4px 8px; gap: 4px; font-size: 14px; }
+
+  .btn { font-size: 15px; padding: 6px 8px; gap: 4px; }
+  .btn-big { font-size: 15px; padding: 6px 10px; }
+  .btn-compact { font-size: 13px; padding: 4px 6px; }
+
+  .input, .textarea { font-size: 15px; padding: 6px 8px; }
+
+  .list-row { font-size: 15px; gap: 6px; padding: 4px 6px; min-height: 46px; }
+  .side-row { font-size: 15px; gap: 6px; padding-left: 6px; padding-right: 6px; min-height: 44px; }
+  .side-count { font-size: 13px; }
+  .row-menu-btn { min-width: 34px; min-height: 34px; border-radius: 8px; }
+
+  .bottombar { gap: 8px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .bottombar .btn { min-height: 46px; font-size: 15px; }
+
+  .file-card { gap: 8px; padding: 5px; min-height: 50px; }
+  .file-thumb, .file-thumb-placeholder { width: 54px; height: 42px; }
+  .file-name { font-size: 14px; }
+  .file-meta { font-size: 12px; }
+  .row-menu-btn.card-menu-btn { min-width: 36px; min-height: 36px; }
+
+  .dialog { padding: 10px; }
+  .dialog-overlay { padding: 6px; }
+  .ctx-item { font-size: 15px; min-height: 42px; }
+
+  /* Голос: mic and its label share one row, so the text box and all three
+     buttons still land above the fold on a ~340px-tall visible viewport. */
+  .voice-card { display: flex; align-items: center; gap: 10px; text-align: left; padding: 6px 8px; }
+  .voice-mic { width: 48px; height: 48px; min-height: 48px; flex: 0 0 auto; margin: 0; }
+  .voice-hint { margin: 0; font-size: 14px; flex: 1 1 auto; min-width: 0; }
+  .voice-spinner { margin: 0; flex: 0 0 auto; width: 24px; height: 24px; border-width: 3px; }
+  .voice-text { min-height: 56px; font-size: 15px; }
+  .voice-actions { flex-wrap: nowrap; }
+  .voice-actions .btn { min-height: 44px; font-size: 14px; padding: 6px 4px; gap: 4px; }
+  .voice-clear { min-height: 38px; font-size: 14px; }
+}
