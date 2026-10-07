@@ -4,12 +4,41 @@
  *   mirrors ring/stop events to any open app windows.
  * - "stop" pushes close the alarm notification on every device the moment
  *   she presses OK anywhere (cross-device dismiss).
- * - Fetch: network-first shell cache so the apps open even with a flaky
- *   connection. API and media are never cached.
+ * - Fetch: content-hashed /assets/ are cache-first (an immutable name means
+ *   a hit is always correct); everything else is network-first so a deploy
+ *   reaches her, falling back to cache when the connection is flaky. API and
+ *   media are never cached.
  * Written as plain conservative JS — it must run on Chrome 109 (Win7).
  */
 
-var CACHE_NAME = 'janna-shell-v1';
+// Bumped whenever the caching rules below change: the activate handler
+// deletes every cache that isn't this one, which is how entries left over
+// from the old network-first scheme get cleared off her phone.
+var CACHE_NAME = 'janna-shell-v2';
+
+// A page whose HTML came from an older deploy asks for asset filenames that
+// no longer exist on the server. Nothing the worker can serve will fix that
+// page — only fresh HTML will — so it reloads the open windows once.
+var reloadedAt = 0;
+function reloadWindowsOnce() {
+  var now = Date.now();
+  if (now - reloadedAt < 30000) return; // never loop
+  reloadedAt = now;
+  self.clients.matchAll({ type: 'window' }).then(function (clientList) {
+    for (var i = 0; i < clientList.length; i++) {
+      if (clientList[i].navigate) clientList[i].navigate(clientList[i].url);
+    }
+  });
+}
+
+function putInCache(request, response) {
+  if (!response || response.status !== 200) return;
+  if (response.type !== 'basic' && response.type !== 'default') return;
+  var copy = response.clone();
+  caches.open(CACHE_NAME).then(function (cache) {
+    cache.put(request, copy);
+  });
+}
 
 self.addEventListener('install', function () {
   self.skipWaiting();
@@ -41,24 +70,51 @@ self.addEventListener('fetch', function (event) {
   if (request.method !== 'GET') return;
   var url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  // Never cache data, media, events or share pages.
+  // Never cache data, media, events or share pages. /sw.js is excluded too —
+  // the browser must always see the real file to notice an update.
   if (
     url.pathname.indexOf('/api/') === 0 ||
     url.pathname.indexOf('/s/') === 0 ||
     url.pathname.indexOf('/setup/') === 0 ||
-    url.pathname.indexOf('/dev') === 0
+    url.pathname.indexOf('/dev') === 0 ||
+    url.pathname === '/sw.js'
   ) {
     return;
   }
+
+  /*
+   * Build assets are content-hashed (assets/ui-Cfg9nh3P.js): the filename
+   * changes whenever the bytes do, so a cached copy is correct by definition
+   * and asking the network for one can only ever go wrong. It did: during a
+   * redeploy the fetch either failed (server restarting) or 404'd (the HTML
+   * she had cached named last build's hashes), and the page ended up with its
+   * HTML but no CSS or JS — rendering as raw unstyled markup. Cache-first
+   * means a hit is served instantly and the network is only the first fetch.
+   */
+  if (url.pathname.indexOf('/assets/') === 0) {
+    event.respondWith(
+      caches.match(request).then(function (cached) {
+        if (cached) return cached;
+        return fetch(request)
+          .then(function (response) {
+            if (response && response.status === 404) reloadWindowsOnce();
+            putInCache(request, response);
+            return response;
+          })
+          .catch(function () {
+            return Response.error(); // offline and never cached — nothing to serve
+          });
+      })
+    );
+    return;
+  }
+
+  // Everything else (HTML, icons, manifests) stays network-first so a deploy
+  // reaches her without a manual refresh, falling back to cache when offline.
   event.respondWith(
     fetch(request)
       .then(function (response) {
-        if (response && response.status === 200 && (response.type === 'basic' || response.type === 'default')) {
-          var copy = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) {
-            cache.put(request, copy);
-          });
-        }
+        putInCache(request, response);
         return response;
       })
       .catch(function () {

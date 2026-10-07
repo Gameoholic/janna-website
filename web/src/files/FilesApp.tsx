@@ -123,16 +123,20 @@ export function FilesApp() {
     void loadFiles(currentId);
   }, [currentId, loadFiles]);
 
-  // A folder is always selected when any exist: the first one on open, and on
-  // desktop again whenever the selection disappears (e.g. its folder was
-  // deleted). On the phone the folder list is the "back" screen, so there
-  // only the first open auto-selects.
-  const autoSelectedRef = useRef(false);
+  // Desktop keeps a folder selected at all times — the sidebar is always on
+  // screen beside it, so an empty right-hand pane would just be a dead gap.
+  // On the phone there is no sidebar: the folder list IS the opening screen,
+  // so nothing is auto-opened and she chooses a folder herself. (Opening the
+  // first folder for her hid the very list she came to Файлы to look at.)
   useEffect(() => {
     if (state.folders.length === 0) return;
     if (currentId !== null && byId.has(currentId)) return;
-    if (isPhone && autoSelectedRef.current) return;
-    autoSelectedRef.current = true;
+    if (isPhone) {
+      // Only reachable when the open folder was deleted underneath her —
+      // fall back to the list rather than to a folder that no longer exists.
+      if (currentId !== null) setCurrentId(null);
+      return;
+    }
     setCurrentId(state.folders[0].id);
   }, [state.folders, currentId, byId, isPhone]);
 
