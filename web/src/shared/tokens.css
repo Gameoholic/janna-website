@@ -945,6 +945,22 @@ a { color: var(--accent); }
     line-height: 1.3;
   }
   .viewer-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+
+  /* The ⋯ popup as a full-width bottom sheet — see the comment in
+     ContextMenu.tsx. It must beat .ctx-menu's own left/top/min-width, which
+     is why it is a second class rather than an override of that one. */
+  .ctx-sheet {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 8px;
+    min-width: 0;
+    max-width: none;
+    max-height: 80vh;
+    max-height: 80dvh;
+    overflow-y: auto;
+  }
+  .ctx-sheet .ctx-item { min-height: 52px; font-size: 17px; }
 }
 
 @media (max-width: 400px) {

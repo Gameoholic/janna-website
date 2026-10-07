@@ -3,6 +3,7 @@ import { api, FileInfo, PathPart } from '../shared/api';
 import { ConfirmDialog, Dialog, copyText, showToast, useIsPhone } from '../shared/ui';
 import { MenuItem, useMenu } from '../shared/ContextMenu';
 import { Picker } from '../shared/Picker';
+import { ShareChooser } from '../shared/ShareSheet';
 import { VideoPlayer } from '../shared/VideoPlayer';
 import {
   IconBack,
@@ -68,15 +69,6 @@ export function Viewer(props: {
     };
   }, [file.id, canNativeShare]);
 
-  const openSheet = (url: string) => {
-    navigator.share({ title: displayName(file.name), url }).catch((e: unknown) => {
-      // She closed the sheet without picking anything — that is a choice, not
-      // a failure, and must not nag her.
-      if (e instanceof Error && e.name === 'AbortError') return;
-      setShareOpen(true); // anything else: fall back to the copyable link
-    });
-  };
-
   const ensureUrl = () => {
     if (shareUrl) return;
     void api
@@ -102,13 +94,6 @@ export function Viewer(props: {
     }
     setSheetOpen(true);
     ensureUrl();
-  };
-
-  const sendTo = (href: string) => {
-    setSheetOpen(false);
-    // location, not window.open: a new window opened from here is treated as
-    // a popup and blocked, while a navigation hands straight over to the app.
-    window.location.href = href;
   };
 
   /*
@@ -316,44 +301,14 @@ export function Viewer(props: {
 
       {menu.menu}
 
-      <Dialog open={sheetOpen} title={t('Отправить файл')} onClose={() => setSheetOpen(false)}>
-        {shareUrl ? null : (
-          <p className="muted" style={{ marginTop: 0 }}>{t('Готовим ссылку…')}</p>
-        )}
-        <div className="stack">
-          <button
-            className="btn btn-primary btn-big btn-block"
-            disabled={!shareUrl}
-            onClick={() => sendTo(`https://wa.me/?text=${encodeURIComponent(shareUrl || '')}`)}
-          >
-            WhatsApp
-          </button>
-          <button
-            className="btn btn-big btn-block"
-            disabled={!shareUrl}
-            onClick={() =>
-              sendTo(
-                `mailto:?subject=${encodeURIComponent(displayName(file.name))}&body=${encodeURIComponent(shareUrl || '')}`,
-              )
-            }
-          >
-            {t('Почта')}
-          </button>
-          <button
-            className="btn btn-big btn-block"
-            disabled={!shareUrl}
-            onClick={() => {
-              setSheetOpen(false);
-              if (shareUrl) openSheet(shareUrl);
-            }}
-          >
-            {t('Другое приложение')}
-          </button>
-          <button className="btn btn-ghost btn-block" onClick={() => setSheetOpen(false)}>
-            {t('Отмена')}
-          </button>
-        </div>
-      </Dialog>
+      <ShareChooser
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        payload={shareUrl}
+        asUrl
+        title={displayName(file.name)}
+        onNativeFailed={() => setShareOpen(true)}
+      />
 
       <ShareDialog file={file} open={shareOpen} onClose={() => setShareOpen(false)} />
 

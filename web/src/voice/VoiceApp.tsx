@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../shared/api';
-import { ConfirmDialog, showToast, TopBar, copyText } from '../shared/ui';
+import { ConfirmDialog, showToast, TopBar, copyText, useIsPhone } from '../shared/ui';
+import { ShareChooser } from '../shared/ShareSheet';
 import { IconCopy, IconMic, IconShare, IconStop } from '../shared/icons';
 import { t } from '../shared/i18n';
 
@@ -36,6 +37,8 @@ export function VoiceApp() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [canShare, setCanShare] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const isPhone = useIsPhone();
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -189,7 +192,10 @@ export function VoiceApp() {
             <button
               className="btn btn-soft btn-big"
               disabled={!text.trim()}
-              onClick={() => void navigator.share({ text }).catch(() => {})}
+              // Phone: the same fixed WhatsApp / Почта / Другое приложение
+              // list as Файлы, so the app she wants is never buried in
+              // Android's own ranking. Desktop keeps the plain system sheet.
+              onClick={() => (isPhone ? setSheetOpen(true) : void navigator.share({ text }).catch(() => {}))}
             >
               <IconShare size={22} /> {t('Поделиться')}
             </button>
@@ -199,6 +205,8 @@ export function VoiceApp() {
           {t('Очистить')}
         </button>
       </div>
+
+      <ShareChooser open={sheetOpen} onClose={() => setSheetOpen(false)} payload={text} />
 
       <ConfirmDialog
         open={resetConfirm}
