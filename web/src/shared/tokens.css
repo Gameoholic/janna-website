@@ -891,6 +891,11 @@ a { color: var(--accent); }
    there. The padding was inline; same values, now overridable per tier. */
 .viewer-head { flex-wrap: nowrap; padding: 8px 12px; gap: 10px; }
 .viewer-back { min-width: 56px; }
+/* Was inline; same values, plus room for the phone's gesture bar so the
+   «Поделиться» button never sits under it. */
+.viewer-actions { padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+/* Was an inline width/height, which no media query could reach. */
+.video-overlay-btn-fs { width: 40px; height: 40px; }
 
 /* Голос: the former inline styles, unchanged in value. */
 .page.voice-page { max-width: 560px; padding-bottom: 24px; }
@@ -971,6 +976,21 @@ a { color: var(--accent); }
     background: transparent;
     box-shadow: none;
   }
+
+  /* The video's control bar wants play + seek + «0:01 / 0:43» + speed +
+     fullscreen on one line — about 245px of content on a ~200px screen. The
+     seek track is the flexible one, so it was the thing crushed to nothing,
+     leaving its 20px thumb sitting on top of the time readout. Give the track
+     a row of its own above the buttons: full width to scrub, and every
+     control back at a size she can actually hit. */
+  .video-overlay-bar { flex-wrap: wrap; gap: 6px; padding: 8px 8px 18px; }
+  .video-overlay-bar .seek-track { flex: 1 0 100%; order: -1; }
+  .video-overlay-total { display: none; }
+  .video-overlay-time { font-size: 12px; }
+  .video-overlay-speed { height: 30px; padding: 0 8px; font-size: 12px; }
+  .video-overlay-btn { width: 30px; height: 30px; }
+  .video-overlay-btn-fs { width: 34px; height: 34px; }
+  .video-center-play { width: 52px; height: 52px; }
 }
 
 /* ---------- Her phone, as it is actually configured ----------

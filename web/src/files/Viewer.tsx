@@ -220,7 +220,7 @@ export function Viewer(props: {
         </div>
       ) : null}
 
-      <div style={{ padding: '8px 10px 10px' }} className="stack" >
+      <div className="stack viewer-actions">
         <button className="btn btn-primary btn-block" onClick={() => setShareOpen(true)}>
           <IconShare size={20} /> {t('Поделиться')}
         </button>

@@ -256,7 +256,11 @@ export function VideoPlayer(props: {
           ) : null}
         </div>
         <div className="video-overlay-time num">
-          {fmtDuration(started ? positionMs : 0)} / {fmtDuration(durationMs)}
+          {fmtDuration(started ? positionMs : 0)}
+          {/* The total is dropped on a narrow phone, where the whole bar does
+              not fit on one line — the file's length is already in the header
+              right above the video. */}
+          <span className="video-overlay-total"> / {fmtDuration(durationMs)}</span>
         </div>
         <button
           className="video-overlay-speed num"
@@ -267,8 +271,7 @@ export function VideoPlayer(props: {
         </button>
         {fsSupported ? (
           <button
-            className="video-overlay-btn"
-            style={{ width: 40, height: 40 }}
+            className="video-overlay-btn video-overlay-btn-fs"
             onClick={toggleFullscreen}
             aria-label={fullscreen ? t('Свернуть') : t('На весь экран')}
           >
