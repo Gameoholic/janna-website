@@ -100,7 +100,10 @@ export function Viewer(props: {
   const details: string[] = [];
   if (file.durationMs) details.push(fmtDuration(file.durationMs));
   details.push(fmtSize(file.size));
-  details.push(fmtDate(file.createdAt));
+  // The date is the least useful of the three and the longest by far
+  // («среда, 15 июля»); on her phone it alone pushed the header onto another
+  // line, so it stays a desktop detail.
+  if (!isPhone) details.push(fmtDate(file.createdAt));
 
   return (
     <div
@@ -114,20 +117,20 @@ export function Viewer(props: {
         flexDirection: 'column',
       }}
     >
-      <div className="row" style={{ padding: '8px 12px', gap: 10 }}>
+      <div className="row viewer-head">
         <button
-          className="btn btn-compact"
-          style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', boxShadow: 'none', minWidth: 56 }}
+          className="btn btn-compact viewer-back"
+          style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', boxShadow: 'none' }}
           onClick={props.onClose}
           aria-label={t('Назад')}
         >
           <IconBack size={24} />
         </button>
         <div className="grow">
-          <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>
+          <div className="viewer-title" style={{ fontWeight: 600, wordBreak: 'break-word' }}>
             {displayName(file.name)}
           </div>
-          <div className="small num" style={{ color: '#9CA3AF' }}>
+          <div className="small num viewer-meta" style={{ color: '#9CA3AF' }}>
             {details.join(' · ')}
           </div>
         </div>
@@ -163,11 +166,14 @@ export function Viewer(props: {
             style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', borderRadius: 10 }}
           />
         ) : null}
-        {file.kind === 'video' ? (
+        {file.kind === 'video' && !isPhone ? (
           // She's used to WhatsApp, where closing a played file means tapping
           // the bottom-right corner — this sits alongside (not instead of)
           // the top-left back button, same action either way. Held clear of
           // VideoPlayer's own bottom control bar so the two never overlap.
+          // Desktop only: on her phone the media area is short enough that
+          // this lands on top of the centre play button, and two 50px targets
+          // that close together are exactly the mis-tap P6 forbids.
           <button
             className="btn btn-compact"
             style={{
