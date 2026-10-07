@@ -221,6 +221,10 @@ export const EN: Record<string, string> = {
   'Постоянная ссылка на этот файл. Отправьте её в WhatsApp — человек увидит только этот один файл.':
     'A permanent link to this file. Send it in WhatsApp — the person will see only this one file.',
   'Скопировать ссылку': 'Copy link',
+  'Отправить файл': 'Send file',
+  'Готовим ссылку…': 'Preparing the link…',
+  'Почта': 'Email',
+  'Другое приложение': 'Another app',
   'Скопировано': 'Copied',
   'Ссылка скопирована': 'Link copied',
   'Не получилось создать ссылку.': 'Could not create the link.',

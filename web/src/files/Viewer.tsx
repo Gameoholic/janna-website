@@ -37,6 +37,7 @@ export function Viewer(props: {
   const [movedTo, setMovedTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const isPhone = useIsPhone();
   const menu = useMenu();
 
@@ -76,25 +77,38 @@ export function Viewer(props: {
     });
   };
 
+  const ensureUrl = () => {
+    if (shareUrl) return;
+    void api
+      .post<{ url: string }>(`/api/files/${file.id}/share`)
+      .then((res) => setShareUrl(res.url))
+      .catch((e) => {
+        showToast(e instanceof Error ? t(e.message) : t('Не получилось создать ссылку.'));
+      });
+  };
+
+  /*
+   * Android decides for itself what goes first in its share sheet, ranked by
+   * what she has used lately — nothing a web page sends can reorder it, and
+   * the apps she actually wants kept landing below ones she never uses. So
+   * the phone gets our own short list first, where WhatsApp and почта are
+   * always in the same place, and the Android sheet stays one tap away for
+   * everything else.
+   */
   const onShare = () => {
     if (!canNativeShare) {
       setShareOpen(true);
       return;
     }
-    // Called straight from the tap while the activation is still fresh.
-    if (shareUrl) {
-      openSheet(shareUrl);
-      return;
-    }
-    void api
-      .post<{ url: string }>(`/api/files/${file.id}/share`)
-      .then((res) => {
-        setShareUrl(res.url);
-        openSheet(res.url);
-      })
-      .catch((e) => {
-        showToast(e instanceof Error ? t(e.message) : t('Не получилось создать ссылку.'));
-      });
+    setSheetOpen(true);
+    ensureUrl();
+  };
+
+  const sendTo = (href: string) => {
+    setSheetOpen(false);
+    // location, not window.open: a new window opened from here is treated as
+    // a popup and blocked, while a navigation hands straight over to the app.
+    window.location.href = href;
   };
 
   /*
@@ -301,6 +315,45 @@ export function Viewer(props: {
       </div>
 
       {menu.menu}
+
+      <Dialog open={sheetOpen} title={t('Отправить файл')} onClose={() => setSheetOpen(false)}>
+        {shareUrl ? null : (
+          <p className="muted" style={{ marginTop: 0 }}>{t('Готовим ссылку…')}</p>
+        )}
+        <div className="stack">
+          <button
+            className="btn btn-primary btn-big btn-block"
+            disabled={!shareUrl}
+            onClick={() => sendTo(`https://wa.me/?text=${encodeURIComponent(shareUrl || '')}`)}
+          >
+            WhatsApp
+          </button>
+          <button
+            className="btn btn-big btn-block"
+            disabled={!shareUrl}
+            onClick={() =>
+              sendTo(
+                `mailto:?subject=${encodeURIComponent(displayName(file.name))}&body=${encodeURIComponent(shareUrl || '')}`,
+              )
+            }
+          >
+            {t('Почта')}
+          </button>
+          <button
+            className="btn btn-big btn-block"
+            disabled={!shareUrl}
+            onClick={() => {
+              setSheetOpen(false);
+              if (shareUrl) openSheet(shareUrl);
+            }}
+          >
+            {t('Другое приложение')}
+          </button>
+          <button className="btn btn-ghost btn-block" onClick={() => setSheetOpen(false)}>
+            {t('Отмена')}
+          </button>
+        </div>
+      </Dialog>
 
       <ShareDialog file={file} open={shareOpen} onClose={() => setShareOpen(false)} />
 
