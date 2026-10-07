@@ -1,12 +1,14 @@
 import { CSSProperties, PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, FileInfo, PathPart } from '../shared/api';
-import { ConfirmDialog, Dialog, copyText, showToast } from '../shared/ui';
+import { ConfirmDialog, Dialog, copyText, showToast, useIsPhone } from '../shared/ui';
+import { MenuItem, useMenu } from '../shared/ContextMenu';
 import { Picker } from '../shared/Picker';
 import { VideoPlayer } from '../shared/VideoPlayer';
 import {
   IconBack,
   IconCheck,
   IconDownload,
+  IconMore,
   IconMove,
   IconPencil,
   IconShare,
@@ -34,6 +36,31 @@ export function Viewer(props: {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [movedTo, setMovedTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const isPhone = useIsPhone();
+  const menu = useMenu();
+
+  /*
+   * The same four secondary actions, offered differently by device. On the
+   * desktop they sit in a row under the file, where there is room for them.
+   * On her phone that row became eight lines of stacked, broken-up words
+   * («Пере / мест / ить») filling half the screen under the video — so there
+   * they move behind the ⋯ handle instead, exactly like the one on every file
+   * row in the list she just came from (P4: one pattern, learned once).
+   */
+  const secondaryActions = (): MenuItem[] => [
+    {
+      label: t('Скачать'),
+      icon: <IconDownload size={20} />,
+      // Content-Disposition is attachment, so this downloads without
+      // navigating the viewer away.
+      onClick: () => {
+        window.location.href = `/api/download/${file.id}`;
+      },
+    },
+    { label: t('Переместить'), icon: <IconMove size={20} />, onClick: () => setMoveOpen(true) },
+    { label: t('Переименовать'), icon: <IconPencil size={20} />, onClick: () => setRenameOpen(true) },
+    { label: t('Удалить'), icon: <IconTrash size={20} />, danger: true, onClick: () => setDeleteOpen(true) },
+  ];
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -104,6 +131,16 @@ export function Viewer(props: {
             {details.join(' · ')}
           </div>
         </div>
+        {isPhone ? (
+          <button
+            className="btn btn-compact"
+            style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', boxShadow: 'none', minWidth: 48, padding: '8px 10px' }}
+            onClick={(e) => menu.openFromButton(e, secondaryActions())}
+            aria-label={t('Действия')}
+          >
+            <IconMore size={24} />
+          </button>
+        ) : null}
       </div>
 
       <div
@@ -181,21 +218,25 @@ export function Viewer(props: {
         <button className="btn btn-primary btn-block" onClick={() => setShareOpen(true)}>
           <IconShare size={20} /> {t('Поделиться')}
         </button>
-        <div className="row-wrap" style={{ gap: 8 }}>
-          <a className="btn btn-compact grow" style={darkBtn} href={`/api/download/${file.id}`}>
-            <IconDownload size={18} /> {t('Скачать')}
-          </a>
-          <button className="btn btn-compact grow" style={darkBtn} onClick={() => setMoveOpen(true)}>
-            <IconMove size={18} /> {t('Переместить')}
-          </button>
-          <button className="btn btn-compact grow" style={darkBtn} onClick={() => setRenameOpen(true)}>
-            <IconPencil size={18} /> {t('Переименовать')}
-          </button>
-          <button className="btn btn-compact grow" style={{ ...darkBtn, color: '#FCA5A5' }} onClick={() => setDeleteOpen(true)}>
-            <IconTrash size={18} /> {t('Удалить')}
-          </button>
-        </div>
+        {isPhone ? null : (
+          <div className="row-wrap" style={{ gap: 8 }}>
+            <a className="btn btn-compact grow" style={darkBtn} href={`/api/download/${file.id}`}>
+              <IconDownload size={18} /> {t('Скачать')}
+            </a>
+            <button className="btn btn-compact grow" style={darkBtn} onClick={() => setMoveOpen(true)}>
+              <IconMove size={18} /> {t('Переместить')}
+            </button>
+            <button className="btn btn-compact grow" style={darkBtn} onClick={() => setRenameOpen(true)}>
+              <IconPencil size={18} /> {t('Переименовать')}
+            </button>
+            <button className="btn btn-compact grow" style={{ ...darkBtn, color: '#FCA5A5' }} onClick={() => setDeleteOpen(true)}>
+              <IconTrash size={18} /> {t('Удалить')}
+            </button>
+          </div>
+        )}
       </div>
+
+      {menu.menu}
 
       <ShareDialog file={file} open={shareOpen} onClose={() => setShareOpen(false)} />
 
