@@ -36,8 +36,66 @@ export function Viewer(props: {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [movedTo, setMovedTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const isPhone = useIsPhone();
   const menu = useMenu();
+
+  /*
+   * On her phone «Поделиться» hands the link straight to Android's own share
+   * sheet — the one she already uses, with WhatsApp, Gmail and Mail.ru in it —
+   * instead of making her create a link, copy it, leave the app and paste it.
+   * Desktop Chrome has no sheet worth showing, so it keeps the link dialog.
+   */
+  const canNativeShare = isPhone && typeof navigator.share === 'function';
+
+  // The link is fetched when the viewer opens, not when she taps: navigator
+  // .share() needs a *transient* user activation, which a slow round trip
+  // between the tap and the call would spend. With the link already in hand
+  // the sheet opens from the tap itself.
+  useEffect(() => {
+    setShareUrl(null);
+    if (!canNativeShare) return;
+    let live = true;
+    void api
+      .get<{ shareToken: string | null }>(`/api/files/${file.id}`)
+      .then(({ shareToken }) => {
+        if (live && shareToken) setShareUrl(`${window.location.origin}/s/${shareToken}`);
+      })
+      .catch(() => { /* tapping share will just create one */ });
+    return () => {
+      live = false;
+    };
+  }, [file.id, canNativeShare]);
+
+  const openSheet = (url: string) => {
+    navigator.share({ title: displayName(file.name), url }).catch((e: unknown) => {
+      // She closed the sheet without picking anything — that is a choice, not
+      // a failure, and must not nag her.
+      if (e instanceof Error && e.name === 'AbortError') return;
+      setShareOpen(true); // anything else: fall back to the copyable link
+    });
+  };
+
+  const onShare = () => {
+    if (!canNativeShare) {
+      setShareOpen(true);
+      return;
+    }
+    // Called straight from the tap while the activation is still fresh.
+    if (shareUrl) {
+      openSheet(shareUrl);
+      return;
+    }
+    void api
+      .post<{ url: string }>(`/api/files/${file.id}/share`)
+      .then((res) => {
+        setShareUrl(res.url);
+        openSheet(res.url);
+      })
+      .catch((e) => {
+        showToast(e instanceof Error ? t(e.message) : t('Не получилось создать ссылку.'));
+      });
+  };
 
   /*
    * The same four secondary actions, offered differently by device. On the
@@ -221,7 +279,7 @@ export function Viewer(props: {
       ) : null}
 
       <div className="stack viewer-actions">
-        <button className="btn btn-primary btn-block" onClick={() => setShareOpen(true)}>
+        <button className="btn btn-primary btn-block" onClick={onShare}>
           <IconShare size={20} /> {t('Поделиться')}
         </button>
         {isPhone ? null : (
