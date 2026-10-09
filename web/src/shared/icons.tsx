@@ -26,6 +26,14 @@ function svg(path: JSX.Element, size = 24, viewBox = '0 0 24 24') {
 }
 
 export const IconBack = ({ size }: IconProps) => svg(<path d="M15 18l-6-6 6-6" />, size);
+export const IconRewind = ({ size }: IconProps) =>
+  svg(
+    <>
+      <path d="M3.5 12a8.5 8.5 0 108.5-8.5" />
+      <path d="M12 3.5L8.2 6.6l3.8 3.1" />
+    </>,
+    size
+  );
 export const IconPlay = ({ size }: IconProps) => svg(<path d="M7 4.5v15l13-7.5z" fill="currentColor" stroke="none" />, size);
 export const IconPause = ({ size }: IconProps) =>
   svg(

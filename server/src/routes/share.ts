@@ -44,7 +44,7 @@ export function shareUrlFor(req: Request, shareToken: string): string {
 export const shareApiRouter = Router();
 
 shareApiRouter.post('/files/:id/share', (req, res) => {
-  const file = db.prepare('SELECT id FROM files WHERE id = ?').get(req.params.id) as { id: string } | undefined;
+  const file = db.prepare('SELECT id FROM files WHERE id = ? AND deleted_at IS NULL').get(req.params.id) as { id: string } | undefined;
   if (!file) {
     res.status(404).json({ message: 'Файл не найден.' });
     return;
@@ -69,7 +69,7 @@ export const sharePublicRouter = Router();
 
 function fileForToken(shareToken: string): FileRow | undefined {
   return db
-    .prepare('SELECT f.* FROM shares s JOIN files f ON f.id = s.file_id WHERE s.token = ?')
+    .prepare('SELECT f.* FROM shares s JOIN files f ON f.id = s.file_id WHERE s.token = ? AND f.deleted_at IS NULL')
     .get(shareToken) as FileRow | undefined;
 }
 

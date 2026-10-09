@@ -13,7 +13,8 @@ import { getMetrics } from '../metrics';
 import { sseClientCount, broadcast } from '../sse';
 import { originOf } from './share';
 import { createDocument, saveDocumentContent } from './documents';
-import { fileToJson } from './files';
+import { FileRow, fileToJson, moveBinaryToTrash } from './files';
+import { expiredFileCount, purgeCutoff, retentionDays, setRetentionDays } from '../retention';
 import { importDocumentFile } from '../documentImport';
 
 /** Filesystem-wide space on the volume backing DATA_DIR (the Pi's SD card/disk), not just her files. */
@@ -51,8 +52,8 @@ adminRouter.get('/overview', (_req, res) => {
   res.json({
     devices: db.prepare('SELECT id, name, created_at, last_seen, push_json IS NOT NULL AS has_push FROM devices').all(),
     counts: {
-      files: count('SELECT COUNT(*) n FROM files'),
-      folders: count('SELECT COUNT(*) n FROM folders'),
+      files: count('SELECT COUNT(*) n FROM files WHERE deleted_at IS NULL'),
+      folders: count('SELECT COUNT(*) n FROM folders WHERE deleted_at IS NULL'),
       shares: count('SELECT COUNT(*) n FROM shares'),
       remindersScheduled: count("SELECT COUNT(*) n FROM reminders WHERE status IN ('scheduled','snoozed')"),
       remindersRinging: count("SELECT COUNT(*) n FROM reminders WHERE status = 'ringing'"),
@@ -149,10 +150,22 @@ adminRouter.delete('/shares/:token', (req, res) => {
 });
 
 adminRouter.get('/settings', (_req, res) => {
-  res.json({ leadTimesMs: getLeadTimes(), whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL });
+  res.json({
+    leadTimesMs: getLeadTimes(),
+    whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL,
+    trashRetentionDays: retentionDays(),
+  });
 });
 
 adminRouter.put('/settings', async (req, res) => {
+  if (req.body?.trashRetentionDays !== undefined) {
+    const days = Number(req.body.trashRetentionDays);
+    if (!Number.isFinite(days) || days < 0) {
+      res.status(400).json({ error: 'trashRetentionDays must be 0 (keep forever) or more' });
+      return;
+    }
+    setRetentionDays(days);
+  }
   if (req.body?.leadTimesMs !== undefined) {
     const leads = Array.isArray(req.body.leadTimesMs)
       ? (req.body.leadTimesMs as unknown[]).map(Number).filter((n) => Number.isFinite(n) && n > 0)
@@ -171,7 +184,11 @@ adminRouter.put('/settings', async (req, res) => {
       return;
     }
   }
-  res.json({ leadTimesMs: getLeadTimes(), whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL });
+  res.json({
+    leadTimesMs: getLeadTimes(),
+    whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL,
+    trashRetentionDays: retentionDays(),
+  });
 });
 
 adminRouter.get('/logs', (req, res) => {
@@ -242,6 +259,76 @@ adminRouter.post('/edits/cleanup', (req, res) => {
   res.json({ ok: true, sessionsRemoved: oldSessions.length, binariesToTrash: moved });
 });
 
+/* ------------------------- Deleted files (P10) -------------------------
+ * «Удалить» only hides a file now. This is the only place anything is
+ * actually destroyed, and only an admin can reach it — she is never shown
+ * a trash can to manage or a «восстановить» she could misread.
+ */
+
+adminRouter.get('/deleted', (_req, res) => {
+  const files = db
+    .prepare(
+      `SELECT f.id, f.name, f.kind, f.size, f.deleted_at, f.folder_id, fo.name AS folder_name
+       FROM files f LEFT JOIN folders fo ON fo.id = f.folder_id
+       WHERE f.deleted_at IS NOT NULL ORDER BY f.deleted_at DESC`
+    )
+    .all();
+  const folders = db
+    .prepare('SELECT id, name, deleted_at FROM folders WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC')
+    .all();
+  res.json({
+    files,
+    folders,
+    retentionDays: retentionDays(),
+    purgesAt: purgeCutoff(),
+    expired: expiredFileCount(),
+  });
+});
+
+adminRouter.post('/deleted/restore', (req, res) => {
+  const fileIds: string[] = Array.isArray(req.body?.fileIds) ? req.body.fileIds.map(String) : [];
+  const folderIds: string[] = Array.isArray(req.body?.folderIds) ? req.body.folderIds.map(String) : [];
+  const unFile = db.prepare('UPDATE files SET deleted_at = NULL WHERE id = ?');
+  const unFolder = db.prepare('UPDATE folders SET deleted_at = NULL WHERE id = ?');
+  db.transaction(() => {
+    for (const fid of fileIds) {
+      unFile.run(fid);
+      // A file can't come back into a folder that's still hidden — it would
+      // exist but be unreachable from every screen. Bring the folder with it.
+      const row = db.prepare('SELECT folder_id FROM files WHERE id = ?').get(fid) as { folder_id: string | null } | undefined;
+      if (row?.folder_id) unFolder.run(row.folder_id);
+    }
+    for (const fid of folderIds) unFolder.run(fid);
+  })();
+  log.info(`restored ${fileIds.length} file(s), ${folderIds.length} folder(s)`);
+  res.json({ ok: true });
+});
+
+/** Permanent: binaries go to trash/ so even this isn't an instant shred. */
+adminRouter.post('/deleted/purge', (req, res) => {
+  const ids: string[] | null = Array.isArray(req.body?.fileIds) ? req.body.fileIds.map(String) : null;
+  const expiredOnly = !ids;
+  const rows = (
+    ids
+      ? db.prepare(`SELECT * FROM files WHERE deleted_at IS NOT NULL AND id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+      : db.prepare('SELECT * FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ?').all(purgeCutoff() ?? 0)
+  ) as FileRow[];
+  for (const row of rows) moveBinaryToTrash(row);
+  if (rows.length) {
+    const del = db.prepare('DELETE FROM files WHERE id = ?'); // shares cascade → link dies with the file
+    db.transaction(() => { for (const r of rows) del.run(r.id); })();
+  }
+  // A hidden folder with nothing left in it can go too.
+  const emptied = db
+    .prepare(
+      `DELETE FROM folders WHERE deleted_at IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM files WHERE files.folder_id = folders.id)`
+    )
+    .run().changes;
+  log.info(`purged ${rows.length} file(s)${expiredOnly ? ' (expired)' : ''}, ${emptied} folder(s)`);
+  res.json({ ok: true, purged: rows.length, foldersRemoved: emptied });
+});
+
 adminRouter.post('/trash/empty', (_req, res) => {
   let removed = 0;
   try {
@@ -265,7 +352,7 @@ adminRouter.post('/trash/empty', (_req, res) => {
  * paragraphs, by design (see documentImport.ts).
  */
 adminRouter.get('/folders', (_req, res) => {
-  const rows = db.prepare('SELECT id, name FROM folders ORDER BY name COLLATE NOCASE').all() as { id: string; name: string }[];
+  const rows = db.prepare('SELECT id, name FROM folders WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE').all() as { id: string; name: string }[];
   res.json({ folders: rows });
 });
 
@@ -273,7 +360,7 @@ const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 
 adminRouter.post('/documents/import', importUpload.single('file'), async (req, res) => {
   const folderId = String(req.body?.folderId || '');
-  if (!folderId || !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)) {
+  if (!folderId || !db.prepare('SELECT 1 FROM folders WHERE id = ? AND deleted_at IS NULL').get(folderId)) {
     res.status(400).json({ message: 'Choose a valid folder.' });
     return;
   }

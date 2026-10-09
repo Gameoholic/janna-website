@@ -136,6 +136,16 @@ const MIGRATIONS: string[] = [
     mem_pct REAL
   );
   `,
+  // Soft delete (P10). «Удалить» used to drop the row and move the binary to
+  // trash/ — the file was unrecoverable the moment she confirmed, and one
+  // mis-tap cost her a video for good. Now a delete only stamps deleted_at:
+  // the row stays, the binary stays where it is, and she simply stops seeing
+  // it. Only an admin purge in /dev actually destroys anything.
+  `
+  ALTER TABLE files ADD COLUMN deleted_at INTEGER;
+  ALTER TABLE folders ADD COLUMN deleted_at INTEGER;
+  CREATE INDEX idx_files_deleted ON files(deleted_at);
+  `,
 ];
 
 export function migrate(): void {

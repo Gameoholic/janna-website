@@ -4,10 +4,11 @@ import { ConfirmDialog, Dialog, copyText, showToast, submitOnEnter, useIsPhone }
 import { MenuItem, useMenu } from '../shared/ContextMenu';
 import { Picker } from '../shared/Picker';
 import { ShareChooser } from '../shared/ShareSheet';
-import { VideoPlayer } from '../shared/VideoPlayer';
+import { PlayerControls, VideoPlayer } from '../shared/VideoPlayer';
 import {
   IconBack,
   IconCheck,
+  IconRewind,
   IconDownload,
   IconMove,
   IconPencil,
@@ -32,6 +33,7 @@ export function Viewer(props: {
   const { file } = props;
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const playerRef = useRef<PlayerControls | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [movedTo, setMovedTo] = useState<string | null>(null);
@@ -207,6 +209,7 @@ export function Viewer(props: {
         {file.kind === 'video' || file.kind === 'audio' ? (
           <VideoPlayer
             fill
+            controls={playerRef}
             kind={file.kind}
             src={mediaUrl}
             poster={file.kind === 'video' && file.hasThumb ? `/api/thumb/${file.id}` : undefined}
@@ -268,6 +271,18 @@ export function Viewer(props: {
       ) : null}
 
       <div className="stack viewer-actions">
+        {/*
+         * Temporary stand-in for the Bluetooth remote: she dances across the
+         * room to her own videos and walks back only to replay the last bit.
+         * Phone only, directly under the video — high enough to stay clear of
+         * Chrome's own bottom bar, wide enough to hit with a thumb without
+         * looking, and it does nothing she has to undo if pressed by mistake.
+         */}
+        {isPhone && (file.kind === 'video' || file.kind === 'audio') ? (
+          <button className="btn viewer-rewind" onClick={() => playerRef.current?.rewind(10)}>
+            <IconRewind size={26} /> {t('Назад на 10 секунд')}
+          </button>
+        ) : null}
         <button className="btn btn-primary btn-block" onClick={onShare}>
           <IconShare size={20} /> {t('Поделиться')}
         </button>

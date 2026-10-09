@@ -168,6 +168,7 @@ export const EN: Record<string, string> = {
   'Переместить': 'Move',
   'Переместить в другую папку': 'Move to another folder',
   'Меню': 'Menu',
+  'Назад на 10 секунд': 'Back 10 seconds',
   'Переименовать': 'Rename',
   'Удалить': 'Delete',
   'Этот файл нельзя показать здесь.': 'This file cannot be shown here.',

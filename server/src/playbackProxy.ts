@@ -69,7 +69,7 @@ interface VideoFileRow {
  * the Pi shouldn't run multiple ffmpeg transcodes at once.
  */
 export async function backfillPlaybackProxies(): Promise<void> {
-  const rows = db.prepare("SELECT id, path FROM files WHERE kind = 'video'").all() as VideoFileRow[];
+  const rows = db.prepare("SELECT id, path FROM files WHERE kind = 'video' AND deleted_at IS NULL").all() as VideoFileRow[];
   let checked = 0;
   let generated = 0;
   for (const row of rows) {

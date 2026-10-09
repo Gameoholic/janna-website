@@ -1,4 +1,11 @@
-import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
+import {
+  CSSProperties,
+  MutableRefObject,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { IconCheck, IconCompress, IconExpand, IconNote, IconPause, IconPlay } from './icons';
 import { MenuItem, useMenu } from './ContextMenu';
 import { fmtDuration } from './russian';
@@ -30,6 +37,11 @@ function currentFullscreenElement(): Element | null {
 // editor's 0.6–0.9 pitch-preserved export speed (8A), which bakes a new file.
 const PLAYBACK_SPEEDS = [0.5, 0.6, 0.7, 0.9, 1];
 
+/** Playback actions the surrounding screen (or, later, the remote) can fire. */
+export interface PlayerControls {
+  rewind: (seconds: number) => void;
+}
+
 /**
  * Plain playback with our own always-visible controls (P12, shared): native
  * `<video controls>` fades its bar out during playback with no way to stop
@@ -48,6 +60,12 @@ export function VideoPlayer(props: {
   kind?: 'video' | 'audio';
   /** Stretch to fill the parent's available space instead of intrinsic size. */
   fill?: boolean;
+  /**
+   * Lets the screen around the player drive playback — today the big
+   * «−10 секунд» button under the video, later the Bluetooth remote, which
+   * fires exactly the same actions.
+   */
+  controls?: MutableRefObject<PlayerControls | null>;
 }) {
   const isAudio = props.kind === 'audio';
   const containerRef = useRef<HTMLDivElement>(null);
@@ -129,6 +147,30 @@ export function VideoPlayer(props: {
     if (media.paused) void media.play();
     else media.pause();
   };
+
+  /*
+   * Rewinding a finished video leaves it paused at the new position, which
+   * looks broken — she pressed a button and nothing moved. Only in that
+   * case do we resume; mid-playback a rewind must not change play state.
+   */
+  const rewind = (seconds: number) => {
+    const media = getMedia();
+    if (!media) return;
+    const ended = media.ended;
+    const next = Math.max(0, media.currentTime - seconds);
+    media.currentTime = next;
+    setPositionMs(next * 1000);
+    if (ended) void media.play().catch(() => { /* nothing useful to tell her */ });
+  };
+
+  const controlsProp = props.controls;
+  useEffect(() => {
+    if (!controlsProp) return;
+    controlsProp.current = { rewind };
+    return () => {
+      controlsProp.current = null;
+    };
+  });
 
   const seekFromEvent = (e: ReactPointerEvent) => {
     const rect = trackRef.current!.getBoundingClientRect();

@@ -83,7 +83,7 @@ export function createDocument(folderId: string, name: string): FileRow {
     `INSERT INTO files (id, folder_id, name, kind, mime, size, path, origin, created_at, snippet)
      VALUES (?, ?, ?, 'document', 'text/html', 0, ?, 'created', ?, '')`
   ).run(fileId, folderId, finalName, filePath, now());
-  return db.prepare('SELECT * FROM files WHERE id = ?').get(fileId) as FileRow;
+  return db.prepare('SELECT * FROM files WHERE id = ? AND deleted_at IS NULL').get(fileId) as FileRow;
 }
 
 /** Sanitizes, writes to disk, and refreshes the cached size + snippet. */
@@ -93,14 +93,14 @@ export function saveDocumentContent(row: FileRow, rawHtml: string): FileRow {
   const size = fs.statSync(row.path).size;
   const snippet = snippetOf(html);
   db.prepare('UPDATE files SET size = ?, snippet = ? WHERE id = ?').run(size, snippet, row.id);
-  return db.prepare('SELECT * FROM files WHERE id = ?').get(row.id) as FileRow;
+  return db.prepare('SELECT * FROM files WHERE id = ? AND deleted_at IS NULL').get(row.id) as FileRow;
 }
 
 export const documentsRouter = Router();
 
 documentsRouter.post('/folders/:folderId/documents', (req, res) => {
   const folderId = req.params.folderId;
-  if (!db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)) {
+  if (!db.prepare('SELECT 1 FROM folders WHERE id = ? AND deleted_at IS NULL').get(folderId)) {
     res.status(404).json({ message: 'Папка не найдена.' });
     return;
   }
@@ -110,7 +110,7 @@ documentsRouter.post('/folders/:folderId/documents', (req, res) => {
 });
 
 function findDocument(fileId: string): FileRow | undefined {
-  return db.prepare("SELECT * FROM files WHERE id = ? AND kind = 'document'").get(fileId) as FileRow | undefined;
+  return db.prepare("SELECT * FROM files WHERE id = ? AND deleted_at IS NULL AND kind = 'document'").get(fileId) as FileRow | undefined;
 }
 
 documentsRouter.get('/documents/:id', (req, res) => {

@@ -18,8 +18,25 @@ interface Overview {
   sseClients: number;
   leadTimesMs: number[];
   whisperModel: string;
+  trashRetentionDays: number;
   uptimeSec: number;
   node: string;
+}
+
+interface DeletedItems {
+  files: {
+    id: string;
+    name: string;
+    kind: string;
+    size: number;
+    deleted_at: number;
+    folder_id: string | null;
+    folder_name: string | null;
+  }[];
+  folders: { id: string; name: string; deleted_at: number }[];
+  retentionDays: number;
+  purgesAt: number | null;
+  expired: number;
 }
 
 interface DeployStatus {
@@ -169,6 +186,8 @@ export function DevApp() {
   const [leads, setLeads] = useState('');
   const [whisperModel, setWhisperModel] = useState('small');
   const [savingModel, setSavingModel] = useState(false);
+  const [deleted, setDeleted] = useState<DeletedItems | null>(null);
+  const [retention, setRetention] = useState('7');
   const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
   const [deployJob, setDeployJob] = useState<DeployJob | null>(null);
   const pollRef = useRef<number | null>(null);
@@ -200,7 +219,9 @@ export function DevApp() {
       setOverview(data);
       setLeads(data.leadTimesMs.map((ms) => String(Math.round(ms / 60000))).join(', '));
       setWhisperModel(data.whisperModel);
+      setRetention(String(data.trashRetentionDays ?? 7));
       setAuthorized(true);
+      setDeleted(await api.get<DeletedItems>('/api/admin/deleted'));
       const codesRes = await api.get<{ codes: typeof codes }>('/api/admin/setup-codes');
       setCodes(codesRes.codes);
       const sharesRes = await api.get<{ shares: typeof shares }>('/api/admin/shares');
@@ -666,6 +687,107 @@ export function DevApp() {
             Save
           </button>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2>Deleted files (soft delete)</h2>
+        <p className="muted small">
+          «Удалить» in Файлы only hides a file — the row is stamped, the binary stays put, and
+          she sees nothing about any of this. Restoring brings it back to the same folder
+          (a hidden folder is restored with it, or the file would be unreachable).
+          Purging is the only step that destroys anything, and even that moves the binary to
+          trash/ rather than unlinking it. Retention 0 = keep hidden files forever.
+        </p>
+        <div className="row" style={{ marginBottom: 12 }}>
+          <label>
+            Keep deleted files for{' '}
+            <input
+              className="input"
+              style={{ maxWidth: 90, minHeight: 44, display: 'inline-block' }}
+              type="number"
+              min={0}
+              value={retention}
+              onChange={(e) => setRetention(e.target.value)}
+            />{' '}
+            days
+          </label>
+          <button
+            className="btn btn-compact btn-primary"
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/admin/settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ trashRetentionDays: Number(retention) }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data?.error || 'Failed.');
+                say('Retention saved.');
+                await loadAll();
+              } catch (e) {
+                say(e instanceof Error ? e.message : 'Failed.');
+              }
+            }}
+          >
+            Save
+          </button>
+          {deleted && deleted.expired > 0 ? (
+            <button
+              className="btn btn-compact"
+              onClick={() =>
+                void post('/api/admin/deleted/purge', {}, `Permanently delete ${deleted.expired} expired file(s)?`)
+              }
+            >
+              Purge {deleted.expired} expired now
+            </button>
+          ) : null}
+        </div>
+        {!deleted || (deleted.files.length === 0 && deleted.folders.length === 0) ? (
+          <p className="muted">Nothing deleted.</p>
+        ) : (
+          <>
+            {deleted.folders.map((f) => (
+              <div key={f.id} className="row" style={{ borderBottom: '1px solid var(--line)', padding: '8px 0' }}>
+                <div className="grow">
+                  <b>📁 {f.name}</b>
+                  <div className="muted small">folder · deleted {fmtElapsed((Date.now() - f.deleted_at) / 1000)} ago</div>
+                </div>
+                <button
+                  className="btn btn-compact"
+                  onClick={() => void post('/api/admin/deleted/restore', { folderIds: [f.id] })}
+                >
+                  Restore
+                </button>
+              </div>
+            ))}
+            {deleted.files.map((f) => (
+              <div key={f.id} className="row" style={{ borderBottom: '1px solid var(--line)', padding: '8px 0' }}>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <b style={{ wordBreak: 'break-word' }}>{f.name}</b>
+                  <div className="muted small">
+                    {f.kind} · {fmtBytes(f.size)} · in {f.folder_name || '—'} · deleted{' '}
+                    {fmtElapsed((Date.now() - f.deleted_at) / 1000)} ago
+                    {deleted.purgesAt !== null && f.deleted_at < deleted.purgesAt ? ' · EXPIRED' : ''}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-compact"
+                  onClick={() => void post('/api/admin/deleted/restore', { fileIds: [f.id] })}
+                >
+                  Restore
+                </button>
+                <button
+                  className="btn btn-compact"
+                  onClick={() =>
+                    void post('/api/admin/deleted/purge', { fileIds: [f.id] }, `Permanently delete "${f.name}"?`)
+                  }
+                >
+                  Delete forever
+                </button>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>

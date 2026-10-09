@@ -128,7 +128,7 @@ videoRouter.post('/edit/sources/chunked', async (req, res) => {
 /** …or picks one from Файлы. The stored file is only ever read (P10). */
 videoRouter.post('/edit/from-file', async (req, res) => {
   const fileId = String(req.body?.fileId || '');
-  const file = db.prepare('SELECT * FROM files WHERE id = ?').get(fileId) as FileRow | undefined;
+  const file = db.prepare('SELECT * FROM files WHERE id = ? AND deleted_at IS NULL').get(fileId) as FileRow | undefined;
   if (!file || !fs.existsSync(file.path)) {
     res.status(404).json({ message: 'Файл не найден.' });
     return;
@@ -253,7 +253,7 @@ videoRouter.post('/edit/jobs/:id/save', async (req, res) => {
     res.status(400).json({ message: 'Сначала выберите папку.' });
     return;
   }
-  if (!db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)) {
+  if (!db.prepare('SELECT 1 FROM folders WHERE id = ? AND deleted_at IS NULL').get(folderId)) {
     res.status(404).json({ message: 'Папка не найдена.' });
     return;
   }
@@ -280,7 +280,7 @@ videoRouter.get('/edit/pickable', (req, res) => {
   const folderId = req.query.folderId && req.query.folderId !== 'root' ? String(req.query.folderId) : null;
   const rows = db
     .prepare(
-      `SELECT * FROM files WHERE kind = 'video' AND folder_id ${folderId ? '= ?' : 'IS NULL'} ORDER BY created_at DESC`
+      `SELECT * FROM files WHERE kind = 'video' AND deleted_at IS NULL AND folder_id ${folderId ? '= ?' : 'IS NULL'} ORDER BY created_at DESC`
     )
     .all(...(folderId ? [folderId] : [])) as FileRow[];
   res.json({ files: rows.map(fileToJson) });

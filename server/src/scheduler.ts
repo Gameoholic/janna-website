@@ -2,6 +2,7 @@ import { db, getSetting, setSetting } from './db';
 import { broadcast } from './sse';
 import { pushToAll } from './push';
 import { log } from './log';
+import { purgeExpired } from './retention';
 import { now, ruDate, ruIn, ruTime } from './util';
 
 export interface ReminderRow {
@@ -122,5 +123,16 @@ function tick(): void {
 
 export function startScheduler(): void {
   setInterval(tick, 5000).unref();
+  // Deleted files are only hidden; this is what eventually clears them out.
+  // Hourly is plenty for a window measured in days, and it runs once at boot
+  // so a long-powered-off Pi catches up as soon as it comes back.
+  setInterval(() => {
+    try {
+      purgeExpired();
+    } catch (e) {
+      log.error('retention purge failed', e);
+    }
+  }, 3600_000).unref();
+  purgeExpired();
   tick();
 }
