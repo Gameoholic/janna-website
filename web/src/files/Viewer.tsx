@@ -1,6 +1,6 @@
 import { CSSProperties, PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, FileInfo, PathPart } from '../shared/api';
-import { ConfirmDialog, Dialog, copyText, showToast, useIsPhone } from '../shared/ui';
+import { ConfirmDialog, Dialog, copyText, showToast, submitOnEnter, useIsPhone } from '../shared/ui';
 import { MenuItem, useMenu } from '../shared/ContextMenu';
 import { Picker } from '../shared/Picker';
 import { ShareChooser } from '../shared/ShareSheet';
@@ -9,7 +9,6 @@ import {
   IconBack,
   IconCheck,
   IconDownload,
-  IconMore,
   IconMove,
   IconPencil,
   IconShare,
@@ -114,7 +113,7 @@ export function Viewer(props: {
         window.location.href = `/api/download/${file.id}`;
       },
     },
-    { label: t('Переместить'), icon: <IconMove size={20} />, onClick: () => setMoveOpen(true) },
+    { label: t('Переместить в другую папку'), icon: <IconMove size={20} />, onClick: () => setMoveOpen(true) },
     { label: t('Переименовать'), icon: <IconPencil size={20} />, onClick: () => setRenameOpen(true) },
     { label: t('Удалить'), icon: <IconTrash size={20} />, danger: true, onClick: () => setDeleteOpen(true) },
   ];
@@ -198,7 +197,7 @@ export function Viewer(props: {
             onClick={(e) => menu.openFromButton(e, secondaryActions())}
             aria-label={t('Действия')}
           >
-            <IconMore size={24} />
+            <span className="row-menu-label">{t('Меню')}</span>
           </button>
         ) : null}
       </div>
@@ -540,7 +539,13 @@ export function RenameDialog(props: {
 
   return (
     <Dialog open={props.open} title={t('Переименовать файл')} onClose={busy ? undefined : props.onClose}>
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      <input
+        className="input"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoFocus
+        {...submitOnEnter(() => void save(), busy)}
+      />
       <div className="stack" style={{ marginTop: 16 }}>
         <button className="btn btn-primary btn-big btn-block" onClick={() => void save()} disabled={busy}>
           {busy ? t('Подождите…') : t('Сохранить')}

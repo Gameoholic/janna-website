@@ -188,6 +188,11 @@ h2 { font-size: 21px; }
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 .dialog h2 { margin-bottom: 12px; }
+/* While the on-screen keyboard is up, Dialog shrinks the overlay to the
+   visual viewport (inline top/height) — the card then sits at the top of
+   what she can actually see, so «Сохранить» stays above the keys. */
+.dialog-overlay.kb-open { align-items: flex-start; }
+.dialog-overlay.kb-open > .dialog { max-height: 100%; }
 .dialog-full {
   max-width: 560px;
   height: calc(100vh - 32px);
@@ -666,6 +671,8 @@ h2 { font-size: 21px; }
   color: var(--text);
   border-radius: 10px;
   cursor: pointer;
+  white-space: normal;
+  line-height: 1.25;
 }
 .ctx-item:hover,
 .ctx-item:active {
@@ -673,6 +680,12 @@ h2 { font-size: 21px; }
 }
 .ctx-item.danger {
   color: var(--danger);
+}
+.ctx-close {
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 10px 10px;
+  margin-top: 4px;
 }
 .ctx-icon {
   display: flex;
@@ -683,7 +696,14 @@ h2 { font-size: 21px; }
   color: var(--danger);
 }
 
-/* 3-dots handle sitting to the right of a folder / file row */
+/* Handle sitting to the right of a folder / file row. It used to be a ⋯
+   glyph, which on her phone sits a thumb's width from Chrome's own ⋮ — she
+   kept hitting the browser menu instead. It now says what it is, in a
+   bordered pill that reads as part of the page, not part of the browser. */
+.row-menu-label {
+  font-size: 16px;
+  font-weight: 700;
+}
 .row-menu-btn {
   flex: 0 0 auto;
   min-width: 44px;
@@ -696,6 +716,13 @@ h2 { font-size: 21px; }
   border-radius: 10px;
   cursor: pointer;
   color: var(--muted);
+}
+.row-menu-btn.row-menu-worded {
+  border: 2px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  padding: 0 12px;
+  min-width: 0;
 }
 .row-menu-btn:hover,
 .row-menu-btn:active {
@@ -960,7 +987,8 @@ a { color: var(--accent); }
     max-height: 80dvh;
     overflow-y: auto;
   }
-  .ctx-sheet .ctx-item { min-height: 52px; font-size: 17px; }
+  .ctx-sheet .ctx-item { min-height: 46px; font-size: 17px; padding: 6px 14px; gap: 12px; }
+  .ctx-sheet .ctx-close { min-height: 50px; }
 }
 
 @media (max-width: 400px) {
@@ -1045,6 +1073,8 @@ a { color: var(--accent); }
   .side-row { font-size: 15px; gap: 6px; padding-left: 6px; padding-right: 6px; min-height: 44px; }
   .side-count { font-size: 13px; }
   .row-menu-btn { min-width: 34px; min-height: 34px; border-radius: 8px; }
+  .row-menu-btn.row-menu-worded { padding: 0 7px; }
+  .row-menu-label { font-size: 13px; }
 
   .bottombar { gap: 8px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
   .bottombar .btn { min-height: 46px; font-size: 15px; }

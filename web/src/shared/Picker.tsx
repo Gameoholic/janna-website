@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, FileInfo, FolderInfo } from './api';
-import { Dialog, showToast } from './ui';
+import { Dialog, showToast, submitOnEnter } from './ui';
 import { IconBack, IconCamera, IconCheck, IconChevron, IconFolder, IconPlus } from './icons';
 import { displayName, fmtDuration } from './russian';
 import { t } from './i18n';
@@ -229,6 +229,7 @@ export function Picker(props: PickerProps) {
           value={newFolderName}
           onChange={(e) => setNewFolderName(e.target.value)}
           autoFocus
+          {...submitOnEnter(() => void createFolder())}
         />
         <div className="stack" style={{ marginTop: 16 }}>
           <button className="btn btn-primary btn-block" onClick={() => void createFolder()}>

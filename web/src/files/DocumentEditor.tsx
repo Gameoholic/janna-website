@@ -943,7 +943,7 @@ export function DocumentEditor(props: {
 
   const menuItems: MenuItem[] = [
     { label: t('Поделиться'), icon: <IconShare size={22} />, onClick: () => setShareOpen(true) },
-    { label: t('Переместить'), icon: <IconMove size={22} />, onClick: () => setMoveOpen(true) },
+    { label: t('Переместить в другую папку'), icon: <IconMove size={22} />, onClick: () => setMoveOpen(true) },
     { label: t('Переименовать'), icon: <IconPencil size={22} />, onClick: () => setRenameOpen(true) },
     { label: t('Скачать'), icon: <IconDownload size={22} />, onClick: downloadDoc },
     { label: t('Удалить'), danger: true, icon: <IconTrash size={22} />, onClick: () => setDeleteOpen(true) },

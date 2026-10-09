@@ -166,6 +166,8 @@ export const EN: Record<string, string> = {
   'Файл теперь в папке «{name}»': 'The file is now in folder “{name}”',
   'Поделиться': 'Share',
   'Переместить': 'Move',
+  'Переместить в другую папку': 'Move to another folder',
+  'Меню': 'Menu',
   'Переименовать': 'Rename',
   'Удалить': 'Delete',
   'Этот файл нельзя показать здесь.': 'This file cannot be shown here.',

@@ -8,7 +8,7 @@ import {
   uploadLarge,
   uploadWithProgress,
 } from '../shared/api';
-import { ConfirmDialog, Dialog, ProgressBar, showToast, TopBar } from '../shared/ui';
+import { ConfirmDialog, Dialog, ProgressBar, showToast, submitOnEnter, TopBar } from '../shared/ui';
 import { Picker } from '../shared/Picker';
 import { VideoPlayer } from '../shared/VideoPlayer';
 import {
@@ -818,6 +818,7 @@ function ResultStage(props: { session: EditSessionInfo; job: EditJobInfo; onRest
           onChange={(e) => setFileName(e.target.value)}
           maxLength={200}
           autoFocus
+          {...submitOnEnter(confirmName, !fileName.trim())}
         />
         <div className="stack" style={{ marginTop: 16 }}>
           <button className="btn btn-primary btn-big btn-block" onClick={confirmName} disabled={!fileName.trim()}>

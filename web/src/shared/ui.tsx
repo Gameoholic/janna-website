@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { IconBack } from './icons';
 import { t } from './i18n';
 
@@ -17,6 +17,34 @@ export function Dialog(props: {
   // dialog out from under her mid-edit. Only close when BOTH the press and
   // the release landed on the backdrop itself, not just the release.
   const downOnOverlay = useRef(false);
+
+  /*
+   * The on-screen keyboard used to cover «Сохранить» in the rename dialog —
+   * she couldn't see that the change still needed confirming and tapped the
+   * browser's Back instead, losing the edit. The keyboard doesn't resize the
+   * layout viewport on Android Chrome, so CSS alone can't see it; visualViewport
+   * can. While it's up we pin the overlay to the visible strip, so the card
+   * (and its buttons) are laid out entirely above the keys.
+   */
+  const [kb, setKb] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!props.open) return;
+    const vv = window.visualViewport;
+    if (!vv) return; // older browsers: unchanged behaviour
+    const update = () => {
+      const hidden = window.innerHeight - vv.height;
+      setKb(hidden > 120 ? { top: vv.offsetTop, height: vv.height } : null);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      setKb(null);
+    };
+  }, [props.open]);
+
   useEffect(() => {
     if (!props.open) return;
     const prev = document.body.style.overflow;
@@ -28,7 +56,8 @@ export function Dialog(props: {
   if (!props.open) return null;
   return (
     <div
-      className="dialog-overlay"
+      className={`dialog-overlay${kb ? ' kb-open' : ''}`}
+      style={kb ? { top: kb.top, height: kb.height, bottom: 'auto' } : undefined}
       onMouseDown={(e) => {
         downOnOverlay.current = e.target === e.currentTarget;
       }}
@@ -102,6 +131,23 @@ export function TopBar(props: { title: string; onBack?: () => void; right?: Reac
       {props.right}
     </div>
   );
+}
+
+/**
+ * Android's keyboard shows a «hide keyboard» arrow by default, which does
+ * nothing useful here. These props turn the key into a visible confirm key
+ * («Готово»/✓) that actually saves — one tap, no hunting for the button.
+ * Spread onto any single-line input inside a dialog.
+ */
+export function submitOnEnter(run: () => void, disabled?: boolean) {
+  return {
+    enterKeyHint: 'done' as const,
+    onKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (!disabled) run();
+    },
+  };
 }
 
 export function ProgressBar(props: { value: number }) {

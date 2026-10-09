@@ -1,4 +1,6 @@
 import { ReactNode, useEffect, useLayoutEffect, useRef, useState, MouseEvent as ReactMouseEvent } from 'react';
+import { t } from './i18n';
+import { IconX } from './icons';
 
 /**
  * Small anchored popup menu, opened either by a right-click (desktop
@@ -117,6 +119,15 @@ function MenuPopup({ state, onClose }: { state: MenuState; onClose: () => void }
           {item.label}
         </button>
       ))}
+      {/* Tapping outside closes the menu, but on a phone that's an invisible
+          affordance she has no reason to guess at — she needs a way out she
+          can see and hit (Section 9). Desktop keeps Esc / click-away. */}
+      {sheet ? (
+        <button className="ctx-item ctx-close" role="menuitem" onClick={onClose}>
+          <span className="ctx-icon"><IconX size={22} /></span>
+          {t('Закрыть')}
+        </button>
+      ) : null}
     </div>
   );
 }

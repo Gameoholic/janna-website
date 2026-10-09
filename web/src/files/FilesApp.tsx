@@ -9,7 +9,7 @@ import {
   uploadLarge,
   uploadWithProgress,
 } from '../shared/api';
-import { ConfirmDialog, Dialog, ProgressBar, showToast, TopBar, useIsPhone } from '../shared/ui';
+import { ConfirmDialog, Dialog, ProgressBar, showToast, submitOnEnter, TopBar, useIsPhone } from '../shared/ui';
 import { Picker } from '../shared/Picker';
 import { MenuItem, useMenu } from '../shared/ContextMenu';
 import {
@@ -18,7 +18,6 @@ import {
   IconDownload,
   IconFile,
   IconFolder,
-  IconMore,
   IconMove,
   IconNote,
   IconPencil,
@@ -381,7 +380,7 @@ export function FilesApp() {
   const fileMenuItems = (file: FileInfo): MenuItem[] => [
     { label: t('Открыть'), icon: <IconFile size={22} />, onClick: () => setViewer(file) },
     { label: t('Поделиться'), icon: <IconShare size={22} />, onClick: () => setShareFileTarget(file) },
-    { label: t('Переместить'), icon: <IconMove size={22} />, onClick: () => setMoveFileTarget(file) },
+    { label: t('Переместить в другую папку'), icon: <IconMove size={22} />, onClick: () => setMoveFileTarget(file) },
     { label: t('Переименовать'), icon: <IconPencil size={22} />, onClick: () => setRenameFileTarget(file) },
     { label: t('Скачать'), icon: <IconDownload size={22} />, onClick: () => downloadFile(file) },
     { label: t('Удалить'), danger: true, icon: <IconTrash size={22} />, onClick: () => setDeleteFileTarget(file) },
@@ -476,11 +475,11 @@ export function FilesApp() {
         </div>
       </div>
       <button
-        className="row-menu-btn card-menu-btn"
+        className="row-menu-btn card-menu-btn row-menu-worded"
         aria-label={t('Действия')}
         onClick={(e) => menu.openFromButton(e, fileMenuItems(file))}
       >
-        <IconMore size={22} />
+        <span className="row-menu-label">{t('Меню')}</span>
       </button>
     </div>
   );
@@ -507,8 +506,12 @@ export function FilesApp() {
             </span>
             <span className="muted small">{folderPath.length ? folderPath[folderPath.length - 1].name : t('Файлы')}</span>
           </span>
-          <button className="row-menu-btn" aria-label={t('Действия')} onClick={(e) => menu.openFromButton(e, fileMenuItems(file))}>
-            <IconMore size={22} />
+          <button
+            className="row-menu-btn row-menu-worded"
+            aria-label={t('Действия')}
+            onClick={(e) => menu.openFromButton(e, fileMenuItems(file))}
+          >
+            <span className="row-menu-label">{t('Меню')}</span>
           </button>
         </div>
       ))}
@@ -605,11 +608,11 @@ export function FilesApp() {
       </span>
       <span className="side-count num">{folder.fileCount || ''}</span>
       <button
-        className="row-menu-btn"
+        className="row-menu-btn row-menu-worded"
         aria-label={t('Действия с папкой')}
         onClick={(e) => menu.openFromButton(e, folderMenuItems(folder))}
       >
-        <IconMore size={22} />
+        <span className="row-menu-label">{t('Меню')}</span>
       </button>
     </div>
   );
@@ -791,6 +794,7 @@ export function FilesApp() {
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             autoFocus
+            {...submitOnEnter(() => void createFolder(), busy)}
           />
           <div className="stack" style={{ marginTop: 16 }}>
             <button className="btn btn-primary btn-big btn-block" onClick={() => void createFolder()} disabled={busy}>
@@ -807,7 +811,13 @@ export function FilesApp() {
           title={t('Переименовать папку')}
           onClose={busy ? undefined : () => setRenameFolderTarget(null)}
         >
-          <input className="input" value={renameFolderName} onChange={(e) => setRenameFolderName(e.target.value)} autoFocus />
+          <input
+            className="input"
+            value={renameFolderName}
+            onChange={(e) => setRenameFolderName(e.target.value)}
+            autoFocus
+            {...submitOnEnter(() => void renameFolder(), busy)}
+          />
           <div className="stack" style={{ marginTop: 16 }}>
             <button className="btn btn-primary btn-big btn-block" onClick={() => void renameFolder()} disabled={busy}>
               {t('Сохранить')}
