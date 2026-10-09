@@ -37,6 +37,17 @@ function currentFullscreenElement(): Element | null {
 // editor's 0.6–0.9 pitch-preserved export speed (8A), which bakes a new file.
 const PLAYBACK_SPEEDS = [0.5, 0.6, 0.7, 0.9, 1];
 
+/**
+ * Keeping the screen awake while something is playing. She props the phone
+ * up and dances across the room to her own videos — the screen timing out
+ * would both stop the picture and (now that we pause on hidden) cut the
+ * sound. Chrome 109 has this; anything older simply doesn't get it.
+ */
+type WakeLockSentinel = { release: () => Promise<void>; released: boolean };
+type WakeLockNavigator = Navigator & {
+  wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinel> };
+};
+
 /** Playback actions the surrounding screen (or, later, the remote) can fire. */
 export interface PlayerControls {
   rewind: (seconds: number) => void;
@@ -106,6 +117,70 @@ export function VideoPlayer(props: {
     icon: rate === s ? <IconCheck size={20} /> : undefined,
     onClick: () => setRate(s),
   }));
+
+  /*
+   * Two ways her audio used to outlive the screen she started it on, both
+   * reported after she left a dance video running and pressed Home:
+   *
+   * 1. Taking a media element out of the DOM does NOT stop it — Chrome keeps
+   *    playing the detached element. Closing the viewer unmounted the node
+   *    and the sound carried on with nothing left on screen to stop it.
+   * 2. Chrome on Android deliberately keeps a page's audio going in the
+   *    background, so pressing Home left it playing from a tab she had no
+   *    idea was still open (she keeps dozens).
+   *
+   * So: hard-stop on unmount, and pause whenever the page goes away. She is
+   * always in front of the phone when she wants the sound — the moment she
+   * isn't looking at it, silence is what she expects.
+   */
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  useEffect(() => {
+    const nav = navigator as WakeLockNavigator;
+    if (!nav.wakeLock) return; // older browser: screen may sleep, nothing we can do
+    let cancelled = false;
+    const release = () => {
+      const held = wakeLockRef.current;
+      wakeLockRef.current = null;
+      if (held && !held.released) void held.release().catch(() => { /* already gone */ });
+    };
+    if (playing && document.visibilityState === 'visible') {
+      nav.wakeLock
+        .request('screen')
+        .then((lock) => {
+          // Unmounted or paused while the request was in flight.
+          if (cancelled || !playing) void lock.release().catch(() => { /* ignore */ });
+          else wakeLockRef.current = lock;
+        })
+        .catch(() => { /* refused (battery saver, backgrounded) — not worth telling her */ });
+    } else {
+      release();
+    }
+    return () => {
+      cancelled = true;
+      release();
+    };
+  }, [playing]);
+
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') getMedia()?.pause();
+    };
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', onHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', onHidden);
+      const media = getMedia();
+      if (!media) return;
+      media.pause();
+      // Dropping the source as well: a paused element that still holds the
+      // file can be resumed by the OS media controls, which would start the
+      // sound again with nothing on screen.
+      media.removeAttribute('src');
+      media.load();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onChange = () => setFullscreen(currentFullscreenElement() === containerRef.current);
