@@ -641,6 +641,12 @@ h2 { font-size: 21px; }
   color: var(--muted);
   font-size: 16px;
   font-variant-numeric: tabular-nums;
+  /* The phone tiers let every row child shrink to 0 so nothing overflows,
+     which squeezed this badge down to one digit's width and broke «10»
+     across two lines. The count is two or three characters — it never needs
+     to shrink, and it must never wrap. */
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* ---------- Context menu (right-click / 3-dots) ---------- */
