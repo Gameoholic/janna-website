@@ -15,7 +15,6 @@ import { MenuItem, useMenu } from '../shared/ContextMenu';
 import {
   IconCamera,
   IconDoc,
-  IconDownload,
   IconFile,
   IconFolder,
   IconMove,
@@ -324,15 +323,6 @@ export function FilesApp() {
 
   // ---- file operations ----
 
-  const downloadFile = (file: FileInfo) => {
-    const a = document.createElement('a');
-    a.href = `/api/download/${file.id}`;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
-
   const doMoveFile = async (folderId: string | null) => {
     if (!moveFileTarget) return;
     setBusy(true);
@@ -372,17 +362,14 @@ export function FilesApp() {
   // ---- context-menu item sets ----
 
   const folderMenuItems = (folder: FolderInfo): MenuItem[] => [
-    { label: t('Открыть'), icon: <IconFolder size={22} />, onClick: () => openFolder(folder.id) },
     { label: t('Переименовать'), icon: <IconPencil size={22} />, onClick: () => startRenameFolder(folder) },
     { label: t('Удалить'), danger: true, icon: <IconTrash size={22} />, onClick: () => setDeleteFolderTarget(folder) },
   ];
 
   const fileMenuItems = (file: FileInfo): MenuItem[] => [
-    { label: t('Открыть'), icon: <IconFile size={22} />, onClick: () => setViewer(file) },
     { label: t('Поделиться'), icon: <IconShare size={22} />, onClick: () => setShareFileTarget(file) },
     { label: t('Переместить в другую папку'), icon: <IconMove size={22} />, onClick: () => setMoveFileTarget(file) },
     { label: t('Переименовать'), icon: <IconPencil size={22} />, onClick: () => setRenameFileTarget(file) },
-    { label: t('Скачать'), icon: <IconDownload size={22} />, onClick: () => downloadFile(file) },
     { label: t('Удалить'), danger: true, icon: <IconTrash size={22} />, onClick: () => setDeleteFileTarget(file) },
   ];
 

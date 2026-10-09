@@ -104,15 +104,6 @@ export function Viewer(props: {
    * row in the list she just came from (P4: one pattern, learned once).
    */
   const secondaryActions = (): MenuItem[] => [
-    {
-      label: t('Скачать'),
-      icon: <IconDownload size={20} />,
-      // Content-Disposition is attachment, so this downloads without
-      // navigating the viewer away.
-      onClick: () => {
-        window.location.href = `/api/download/${file.id}`;
-      },
-    },
     { label: t('Переместить в другую папку'), icon: <IconMove size={20} />, onClick: () => setMoveOpen(true) },
     { label: t('Переименовать'), icon: <IconPencil size={20} />, onClick: () => setRenameOpen(true) },
     { label: t('Удалить'), icon: <IconTrash size={20} />, danger: true, onClick: () => setDeleteOpen(true) },
@@ -282,9 +273,6 @@ export function Viewer(props: {
         </button>
         {isPhone ? null : (
           <div className="row-wrap" style={{ gap: 8 }}>
-            <a className="btn btn-compact grow" style={darkBtn} href={`/api/download/${file.id}`}>
-              <IconDownload size={18} /> {t('Скачать')}
-            </a>
             <button className="btn btn-compact grow" style={darkBtn} onClick={() => setMoveOpen(true)}>
               <IconMove size={18} /> {t('Переместить')}
             </button>
