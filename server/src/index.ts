@@ -18,6 +18,7 @@ import { voiceRouter } from './routes/voice';
 import { remindersRouter } from './routes/reminders';
 import { setupRouter } from './routes/setup';
 import { adminRouter } from './routes/admin';
+import { mediaCacheRouter } from './mediaCache';
 import { ensureWhisperService } from './whisper';
 import { backfillPlaybackProxies } from './playbackProxy';
 import { log } from './log';
@@ -68,6 +69,7 @@ api.use(shareApiRouter);
 api.use(videoRouter);
 api.use(voiceRouter);
 api.use(remindersRouter);
+api.use(mediaCacheRouter);
 app.use('/api', deviceAuth, api);
 
 // ---- Static frontends (the four apps + root chooser + dev panel) ----

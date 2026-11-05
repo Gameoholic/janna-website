@@ -23,6 +23,34 @@ interface Overview {
   node: string;
 }
 
+interface MediaCachePolicy {
+  enabled: boolean;
+  keepDays: number;
+  maxFileMB: number;
+  maxTotalMB: number;
+}
+
+interface MediaCacheState {
+  policy: MediaCachePolicy;
+  devices: {
+    deviceId: string;
+    deviceName: string;
+    reportedAt: number;
+    usage: number | null;
+    quota: number | null;
+    persisted: boolean | null;
+    files: {
+      id: string;
+      name: string | null;
+      deleted: boolean;
+      size: number | null;
+      storedBytes: number;
+      complete: boolean;
+      playedAt: number;
+    }[];
+  }[];
+}
+
 interface DeletedItems {
   files: {
     id: string;
@@ -188,6 +216,8 @@ export function DevApp() {
   const [savingModel, setSavingModel] = useState(false);
   const [deleted, setDeleted] = useState<DeletedItems | null>(null);
   const [retention, setRetention] = useState('7');
+  const [mediaCache, setMediaCache] = useState<MediaCacheState | null>(null);
+  const [mcForm, setMcForm] = useState({ enabled: true, keepDays: '3', maxFileMB: '300', maxTotalMB: '2000' });
   const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
   const [deployJob, setDeployJob] = useState<DeployJob | null>(null);
   const pollRef = useRef<number | null>(null);
@@ -222,6 +252,14 @@ export function DevApp() {
       setRetention(String(data.trashRetentionDays ?? 7));
       setAuthorized(true);
       setDeleted(await api.get<DeletedItems>('/api/admin/deleted'));
+      const mc = await api.get<MediaCacheState>('/api/admin/media-cache');
+      setMediaCache(mc);
+      setMcForm({
+        enabled: mc.policy.enabled,
+        keepDays: String(mc.policy.keepDays),
+        maxFileMB: String(mc.policy.maxFileMB),
+        maxTotalMB: String(mc.policy.maxTotalMB),
+      });
       const codesRes = await api.get<{ codes: typeof codes }>('/api/admin/setup-codes');
       setCodes(codesRes.codes);
       const sharesRes = await api.get<{ shares: typeof shares }>('/api/admin/shares');
@@ -630,6 +668,94 @@ export function DevApp() {
             >
               Delete
             </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2>Offline videos (smart cache)</h2>
+        <p className="muted small">
+          Every video/audio she plays from Файлы is kept on that device (saved as it streams, the
+          rest filled in the background while an app is open) so it plays with no signal — the ממד.
+          Removed after it hasn&apos;t been played for the set number of days; beyond the budget the
+          least recently played go first. She sees none of this. Each device reports what it holds
+          at most once a minute while an app is open.
+        </p>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={mcForm.enabled}
+              onChange={(e) => setMcForm({ ...mcForm, enabled: e.target.checked })}
+            />{' '}
+            Enabled
+          </label>
+          {(
+            [
+              ['keepDays', 'Remove if not played for (days)'],
+              ['maxFileMB', 'Skip files over (MB)'],
+              ['maxTotalMB', 'Budget per device (MB)'],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key}>
+              {label}{' '}
+              <input
+                className="input"
+                style={{ maxWidth: 100, minHeight: 44, display: 'inline-block' }}
+                type="number"
+                min={1}
+                value={mcForm[key]}
+                onChange={(e) => setMcForm({ ...mcForm, [key]: e.target.value })}
+              />
+            </label>
+          ))}
+          <button
+            className="btn btn-compact btn-primary"
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/admin/settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    mediaCache: {
+                      enabled: mcForm.enabled,
+                      keepDays: Number(mcForm.keepDays),
+                      maxFileMB: Number(mcForm.maxFileMB),
+                      maxTotalMB: Number(mcForm.maxTotalMB),
+                    },
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data?.error || 'Failed.');
+                say('Offline video settings saved. Devices pick them up next time an app opens.');
+                await loadAll();
+              } catch (e) {
+                say(e instanceof Error ? e.message : 'Failed.');
+              }
+            }}
+          >
+            Save
+          </button>
+        </div>
+        {mediaCache && mediaCache.devices.length === 0 ? (
+          <p className="muted small">No device has reported yet (they report after opening an app on the new build).</p>
+        ) : null}
+        {mediaCache?.devices.map((d) => (
+          <div key={d.deviceId} style={{ borderTop: '1px solid var(--line)', padding: '8px 0' }}>
+            <div>
+              <b>{d.deviceName}</b> — reported {new Date(d.reportedAt).toLocaleString()}
+              {d.usage !== null && d.quota ? ` · browser storage ${fmtBytes(d.usage)} of ${fmtBytes(d.quota)}` : ''}
+              {d.persisted !== null ? ` · persistent: ${d.persisted ? 'yes' : 'no'}` : ''}
+            </div>
+            {d.files.length === 0 ? <div className="muted small">Nothing kept.</div> : null}
+            {d.files.map((f) => (
+              <div key={f.id} className="small" style={{ paddingLeft: 12 }}>
+                {f.name ?? f.id}
+                {f.deleted ? ' (deleted)' : ''} — {fmtBytes(f.storedBytes)}
+                {f.size ? ` of ${fmtBytes(f.size)}` : ''} {f.complete ? '✓ complete' : '… filling'}
+                {f.playedAt ? ` · last played ${new Date(f.playedAt).toLocaleString()}` : ''}
+              </div>
+            ))}
           </div>
         ))}
       </div>

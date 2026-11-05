@@ -16,6 +16,7 @@ import { createDocument, saveDocumentContent } from './documents';
 import { FileRow, fileToJson, moveBinaryToTrash } from './files';
 import { expiredFileCount, purgeCutoff, retentionDays, setRetentionDays } from '../retention';
 import { importDocumentFile } from '../documentImport';
+import { mediaCachePolicy, mediaCacheReports, setMediaCachePolicy } from '../mediaCache';
 
 /** Filesystem-wide space on the volume backing DATA_DIR (the Pi's SD card/disk), not just her files. */
 function diskUsage(dir: string): { total: number; free: number; used: number } {
@@ -154,10 +155,23 @@ adminRouter.get('/settings', (_req, res) => {
     leadTimesMs: getLeadTimes(),
     whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL,
     trashRetentionDays: retentionDays(),
+    mediaCache: mediaCachePolicy(),
   });
 });
 
+/** What each device keeps for offline playback, as it last reported. */
+adminRouter.get('/media-cache', (_req, res) => {
+  res.json({ policy: mediaCachePolicy(), devices: mediaCacheReports() });
+});
+
 adminRouter.put('/settings', async (req, res) => {
+  if (req.body?.mediaCache !== undefined) {
+    const result = setMediaCachePolicy(req.body.mediaCache);
+    if (typeof result === 'string') {
+      res.status(400).json({ error: result });
+      return;
+    }
+  }
   if (req.body?.trashRetentionDays !== undefined) {
     const days = Number(req.body.trashRetentionDays);
     if (!Number.isFinite(days) || days < 0) {
@@ -188,6 +202,7 @@ adminRouter.put('/settings', async (req, res) => {
     leadTimesMs: getLeadTimes(),
     whisperModel: getSetting('whisper_model') || WHISPER_DEFAULT_MODEL,
     trashRetentionDays: retentionDays(),
+    mediaCache: mediaCachePolicy(),
   });
 });
 

@@ -10,6 +10,7 @@ import { IconCheck, IconCompress, IconExpand, IconNote, IconPause, IconPlay } fr
 import { MenuItem, useMenu } from './ContextMenu';
 import { fmtDuration } from './russian';
 import { t } from './i18n';
+import { noteClosed, notePlayed } from './mediaCache';
 
 /** Cross-browser fullscreen bits — Chrome109/Win7 and Android Chrome both
  * support the standard API, but feature-detect anyway and hide the button
@@ -220,6 +221,8 @@ export function VideoPlayer(props: {
     wantPlayRef.current = false;
     lastTimeRef.current = 0;
     endRecovery();
+    const src = props.src;
+    return () => noteClosed(src);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.src]);
 
@@ -272,6 +275,12 @@ export function VideoPlayer(props: {
       wantPlayRef.current = true;
       setPlaying(true);
       setStarted(true);
+      // Whatever she plays is kept on the phone for next time (mediaCache.ts),
+      // fetched ahead of where she is in it.
+      notePlayed(props.src, () => {
+        const media = getMedia();
+        return media && media.duration > 0 ? media.currentTime / media.duration : 0;
+      });
     },
     onPause: () => {
       // A reload during recovery is not her pausing — keep the intent and the

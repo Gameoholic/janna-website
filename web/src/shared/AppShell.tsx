@@ -3,6 +3,7 @@ import './tokens.css';
 import { api, ApiError } from './api';
 import { AlarmTakeover, startAlarmClient } from './alarm';
 import { registerServiceWorker, ensurePushSubscription } from './push';
+import { startMediaCache } from './mediaCache';
 import { CenterMessage, Spinner, ToastHost } from './ui';
 import { t } from './i18n';
 
@@ -24,7 +25,10 @@ export function AppShell(props: { app: 'video' | 'files' | 'reminders' | 'voice'
         if (cancelled) return;
         setGate('ok');
         startAlarmClient();
-        void registerServiceWorker().then(() => void ensurePushSubscription());
+        void registerServiceWorker().then(() => {
+          void ensurePushSubscription();
+          startMediaCache();
+        });
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 401) setGate('unprovisioned');
