@@ -217,7 +217,7 @@ export function DevApp() {
   const [deleted, setDeleted] = useState<DeletedItems | null>(null);
   const [retention, setRetention] = useState('7');
   const [mediaCache, setMediaCache] = useState<MediaCacheState | null>(null);
-  const [mcForm, setMcForm] = useState({ enabled: true, keepDays: '3', maxFileMB: '300', maxTotalMB: '2000' });
+  const [mcForm, setMcForm] = useState({ enabled: true, keepDays: '7', maxFileMB: '300', maxTotalMB: '2000' });
   const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
   const [deployJob, setDeployJob] = useState<DeployJob | null>(null);
   const pollRef = useRef<number | null>(null);

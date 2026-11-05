@@ -22,7 +22,7 @@ export interface MediaCachePolicy {
 
 export const DEFAULT_MEDIA_CACHE_POLICY: MediaCachePolicy = {
   enabled: true,
-  keepDays: 3,
+  keepDays: 7,
   maxFileMB: 300,
   maxTotalMB: 2000,
 };

@@ -43,7 +43,7 @@ export interface MediaCachePolicy {
   maxTotalMB: number;
 }
 
-const DEFAULT_POLICY: MediaCachePolicy = { enabled: true, keepDays: 3, maxFileMB: 300, maxTotalMB: 2000 };
+const DEFAULT_POLICY: MediaCachePolicy = { enabled: true, keepDays: 7, maxFileMB: 300, maxTotalMB: 2000 };
 
 interface Meta {
   size: number;
