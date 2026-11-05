@@ -95,11 +95,202 @@ export function VideoPlayer(props: {
   const [scrubbing, setScrubbing] = useState(false);
   const speedMenu = useMenu();
 
+  /*
+   * Surviving a bad connection. She dances to these videos in the ממד, where
+   * the concrete walls make the phone hop between home Wi-Fi and mobile data
+   * every couple of minutes. Each hop kills the video's download mid-stream,
+   * and a bare <video> just stops for good on that — no message, no retry —
+   * so to her the video "randomly paused" or "didn't play at all".
+   *
+   * So the player keeps the intent («she wants this playing») separately
+   * from the element's own state, and when the connection dies — an error,
+   * or a stall that never ends — it quietly reloads the file and carries on
+   * from the same second, retrying for as long as she stays on the screen.
+   * A short note tells her it will continue by itself, so she isn't left
+   * tapping buttons on a frozen picture.
+   */
+  const wantPlayRef = useRef(false);
+  const lastTimeRef = useRef(0);
+  const recoveringRef = useRef(false);
+  const attemptRef = useRef(0);
+  const reachableFailsRef = useRef(0);
+  const retryTimerRef = useRef<number | null>(null);
+  const pendingMetaRef = useRef<(() => void) | null>(null);
+  const unmountedRef = useRef(false);
+  const stallSinceRef = useRef(0);
+  const stallPosRef = useRef(-1);
+  const [weakNetwork, setWeakNetwork] = useState(false);
+
+  const clearRetry = () => {
+    if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = null;
+  };
+
+  const endRecovery = () => {
+    clearRetry();
+    recoveringRef.current = false;
+    attemptRef.current = 0;
+    reachableFailsRef.current = 0;
+    stallSinceRef.current = 0;
+    setWeakNetwork(false);
+  };
+
+  /** Reload the file and pick up exactly where it was. */
+  const reloadAtLastPosition = () => {
+    clearRetry();
+    const media = getMedia();
+    if (!media || unmountedRef.current) return;
+    // Hidden: we paused it anyway; try again the moment she's back.
+    if (document.visibilityState === 'hidden') return;
+    // Phone knows it has no network at all — the 'online' event will retry.
+    if (navigator.onLine === false) {
+      scheduleRetry();
+      return;
+    }
+    if (pendingMetaRef.current) media.removeEventListener('loadedmetadata', pendingMetaRef.current);
+    const onMeta = () => {
+      pendingMetaRef.current = null;
+      if (unmountedRef.current) return;
+      const at = lastTimeRef.current;
+      if (at > 0 && Number.isFinite(media.duration)) media.currentTime = Math.min(at, media.duration);
+      if (wantPlayRef.current) void media.play().catch(() => { /* error event handles it */ });
+      // Paused: the file is reachable again and sits where she left it — done.
+      // (Playing ends recovery on the 'playing' event instead.)
+      else endRecovery();
+    };
+    pendingMetaRef.current = onMeta;
+    media.addEventListener('loadedmetadata', onMeta);
+    stallSinceRef.current = 0;
+    media.load(); // re-requests the same src from scratch, on whatever network is up now
+  };
+
+  const scheduleRetry = () => {
+    clearRetry();
+    // 1s, 2s, 4s, 8s, then every 10s — for as long as she stays on this screen.
+    const delay = Math.min(10000, 1000 * 2 ** attemptRef.current);
+    attemptRef.current += 1;
+    retryTimerRef.current = window.setTimeout(reloadAtLastPosition, delay);
+  };
+
+  const beginRecovery = (immediately: boolean) => {
+    if (unmountedRef.current) return;
+    if (!recoveringRef.current) {
+      recoveringRef.current = true;
+      attemptRef.current = 0;
+      setWeakNetwork(true);
+    }
+    if (immediately) reloadAtLastPosition();
+    else scheduleRetry();
+  };
+
+  const onMediaError = (media: HTMLMediaElement) => {
+    if (unmountedRef.current || !media.getAttribute('src')) return;
+    const code = media.error?.code;
+    // 1 = aborted by us (load() during a retry) — not a failure.
+    if (code === 1) return;
+    if (code === 2) {
+      beginRecovery(false);
+      return;
+    }
+    /*
+     * 3/4 (decode / «format» error): Chrome reports a connection that died
+     * before any data arrived as a format error, which is exactly tonight's
+     * "didn't play at all". Ask the server directly: unreachable means it
+     * was the network, so keep retrying. If the server answers fine three
+     * times running, the file itself is the problem and retrying is pointless.
+     */
+    fetch(props.src, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .then((reachable) => {
+        if (unmountedRef.current) return;
+        if (reachable) reachableFailsRef.current += 1;
+        if (reachable && reachableFailsRef.current >= 3) {
+          endRecovery();
+          return;
+        }
+        beginRecovery(false);
+      });
+  };
+
   // A freshly opened file always starts at normal speed — she shouldn't have
   // to remember that the last file she watched was left at 1.5× (P2).
   useEffect(() => {
     setRate(1);
+    wantPlayRef.current = false;
+    lastTimeRef.current = 0;
+    endRecovery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.src]);
+
+  /*
+   * Stall watchdog. When the phone switches network the old connection
+   * often doesn't error — it just hangs, and the video sits on «loading»
+   * forever. Meant to be playing, not moving, no data for 15s → reload.
+   */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const media = getMedia();
+      if (!media || !wantPlayRef.current || recoveringRef.current || media.paused || media.ended) {
+        stallSinceRef.current = 0;
+        return;
+      }
+      const starved = media.readyState < 3; // < HAVE_FUTURE_DATA: waiting on the network
+      if (!starved || media.currentTime !== stallPosRef.current) {
+        stallPosRef.current = media.currentTime;
+        stallSinceRef.current = 0;
+        return;
+      }
+      const now = Date.now();
+      if (!stallSinceRef.current) stallSinceRef.current = now;
+      const stalledFor = now - stallSinceRef.current;
+      if (stalledFor > 15000) beginRecovery(true);
+      else if (stalledFor > 4000) setWeakNetwork(true);
+    }, 1000);
+    const onOnline = () => {
+      if (recoveringRef.current) {
+        attemptRef.current = 0;
+        reloadAtLastPosition();
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && recoveringRef.current) reloadAtLastPosition();
+    };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAudio]);
+
+  /** Shared event wiring for <video> and <audio>. */
+  const mediaEvents = {
+    onPlay: () => {
+      wantPlayRef.current = true;
+      setPlaying(true);
+      setStarted(true);
+    },
+    onPause: () => {
+      // A reload during recovery is not her pausing — keep the intent and the
+      // Pause button as they were, so the screen doesn't flicker to «Смотреть».
+      if (recoveringRef.current) return;
+      wantPlayRef.current = false;
+      setPlaying(false);
+    },
+    onEnded: () => {
+      wantPlayRef.current = false;
+    },
+    onPlaying: () => endRecovery(),
+    onTimeUpdate: (e: { currentTarget: HTMLMediaElement }) => {
+      // A reload resets the element to 0:00 — don't let that overwrite where she was.
+      if (!recoveringRef.current) lastTimeRef.current = e.currentTarget.currentTime;
+      if (stallSinceRef.current === 0 && !recoveringRef.current) setWeakNetwork(false);
+    },
+    onError: (e: { currentTarget: HTMLMediaElement }) => onMediaError(e.currentTarget),
+  };
 
   useEffect(() => {
     const media = getMedia();
@@ -162,14 +353,20 @@ export function VideoPlayer(props: {
   }, [playing]);
 
   useEffect(() => {
+    unmountedRef.current = false;
     const onHidden = () => {
-      if (document.visibilityState === 'hidden') getMedia()?.pause();
+      if (document.visibilityState !== 'hidden') return;
+      wantPlayRef.current = false;
+      setPlaying(false); // onPause ignores pauses mid-recovery, so say it here
+      getMedia()?.pause();
     };
     document.addEventListener('visibilitychange', onHidden);
     window.addEventListener('pagehide', onHidden);
     return () => {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', onHidden);
+      unmountedRef.current = true;
+      clearRetry();
       const media = getMedia();
       if (!media) return;
       media.pause();
@@ -208,7 +405,10 @@ export function VideoPlayer(props: {
     let raf = 0;
     const step = () => {
       const media = getMedia();
-      if (media && !draggingRef.current) setPositionMs(media.currentTime * 1000);
+      // While reloading, the element sits at 0:00 — keep showing where she was.
+      if (media && !draggingRef.current) {
+        setPositionMs((recoveringRef.current ? lastTimeRef.current : media.currentTime) * 1000);
+      }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -219,8 +419,27 @@ export function VideoPlayer(props: {
   const togglePlay = () => {
     const media = getMedia();
     if (!media) return;
-    if (media.paused) void media.play();
-    else media.pause();
+    if (recoveringRef.current) {
+      // Mid-reconnect the element's own paused flag means nothing — go by intent.
+      if (wantPlayRef.current) {
+        wantPlayRef.current = false;
+        setPlaying(false);
+        media.pause();
+      } else {
+        wantPlayRef.current = true;
+        setPlaying(true);
+        attemptRef.current = 0;
+        reloadAtLastPosition(); // she asked for it — try right now, not on the backoff
+      }
+      return;
+    }
+    if (media.paused) {
+      wantPlayRef.current = true;
+      void media.play().catch(() => { /* a network failure arrives as an error event */ });
+    } else {
+      wantPlayRef.current = false;
+      media.pause();
+    }
   };
 
   /*
@@ -232,8 +451,10 @@ export function VideoPlayer(props: {
     const media = getMedia();
     if (!media) return;
     const ended = media.ended;
-    const next = Math.max(0, media.currentTime - seconds);
-    media.currentTime = next;
+    const from = recoveringRef.current ? lastTimeRef.current : media.currentTime;
+    const next = Math.max(0, from - seconds);
+    lastTimeRef.current = next;
+    if (!recoveringRef.current) media.currentTime = next;
     setPositionMs(next * 1000);
     if (ended) void media.play().catch(() => { /* nothing useful to tell her */ });
   };
@@ -252,8 +473,9 @@ export function VideoPlayer(props: {
     const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const ms = fraction * durationMs;
     setPositionMs(ms);
+    lastTimeRef.current = ms / 1000;
     const media = getMedia();
-    if (media) media.currentTime = ms / 1000;
+    if (media && !recoveringRef.current) media.currentTime = ms / 1000;
   };
 
   const onTrackDown = (e: ReactPointerEvent) => {
@@ -310,11 +532,7 @@ export function VideoPlayer(props: {
             ref={audioElRef}
             src={props.src}
             preload="metadata"
-            onPlay={() => {
-              setPlaying(true);
-              setStarted(true);
-            }}
-            onPause={() => setPlaying(false)}
+            {...mediaEvents}
             onLoadedMetadata={(e) => setDurationMs(e.currentTarget.duration * 1000)}
             style={{ display: 'none' }}
           />
@@ -328,11 +546,7 @@ export function VideoPlayer(props: {
           preload="metadata"
           onContextMenu={(e) => e.preventDefault()}
           onClick={togglePlay}
-          onPlay={() => {
-            setPlaying(true);
-            setStarted(true);
-          }}
-          onPause={() => setPlaying(false)}
+          {...mediaEvents}
           onLoadedMetadata={(e) => setDurationMs(e.currentTarget.duration * 1000)}
           style={
             fullscreen
@@ -346,6 +560,12 @@ export function VideoPlayer(props: {
         <button className="video-center-play" onClick={togglePlay} aria-label={playing ? t('Пауза') : t('Смотреть')}>
           <IconPlay size={30} />
         </button>
+      ) : null}
+
+      {weakNetwork ? (
+        <div className="video-weak-hint" role="status">
+          {t('Плохая связь — видео продолжится само')}
+        </div>
       ) : null}
 
       <div className="video-overlay-bar">

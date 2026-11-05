@@ -1127,3 +1127,22 @@ a { color: var(--accent); }
   .viewer-title { font-size: 14px; }
   .viewer-meta { font-size: 12px; }
 }
+
+/* Shown while the player reconnects after the phone lost its connection
+ * (VideoPlayer). Sits at the top so it never covers the play button or the
+ * control bar. */
+.video-weak-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 20px);
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(20, 20, 20, 0.75);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+}

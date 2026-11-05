@@ -60,6 +60,7 @@ export const EN: Record<string, string> = {
   'Не получилось открыть видео.': 'Could not open the video.',
   'Пауза': 'Pause',
   'Смотреть': 'Play',
+  'Плохая связь — видео продолжится само': 'Poor connection — the video will continue by itself',
   'из {d}': 'of {d}',
   'медленнее: {s}': 'slower: {s}',
   'Что будем делать с видео?': 'What shall we do with the video?',
