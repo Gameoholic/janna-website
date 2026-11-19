@@ -48,6 +48,11 @@ function dirSize(dir: string): number {
 
 export const adminRouter = Router();
 
+/** 200 only behind the admin cookie — lets her apps reveal dev-only extras. */
+adminRouter.get('/whoami', (_req, res) => {
+  res.json({ admin: true });
+});
+
 adminRouter.get('/overview', (_req, res) => {
   const count = (sql: string) => (db.prepare(sql).get() as { n: number }).n;
   res.json({

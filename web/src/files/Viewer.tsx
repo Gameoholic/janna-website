@@ -17,6 +17,7 @@ import {
 } from '../shared/icons';
 import { displayName, fmtDate, fmtDuration, fmtSize } from '../shared/russian';
 import { t } from '../shared/i18n';
+import { downloadFile, useIsAdmin } from '../shared/admin';
 
 /**
  * Full-screen file view (8B): normal playback + scrubbing, big «Поделиться»,
@@ -41,6 +42,8 @@ export function Viewer(props: {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const isPhone = useIsPhone();
+  const isAdmin = useIsAdmin();
+  const adminDownload = isAdmin && file.kind === 'video';
   const menu = useMenu();
 
   /*
@@ -108,6 +111,7 @@ export function Viewer(props: {
   const secondaryActions = (): MenuItem[] => [
     { label: t('Переместить в другую папку'), icon: <IconMove size={20} />, onClick: () => setMoveOpen(true) },
     { label: t('Переименовать'), icon: <IconPencil size={20} />, onClick: () => setRenameOpen(true) },
+    ...(adminDownload ? [{ label: t('Скачать'), icon: <IconDownload size={20} />, onClick: () => downloadFile(file.id) }] : []),
     { label: t('Удалить'), icon: <IconTrash size={20} />, danger: true, onClick: () => setDeleteOpen(true) },
   ];
 
@@ -294,6 +298,11 @@ export function Viewer(props: {
             <button className="btn btn-compact grow" style={darkBtn} onClick={() => setRenameOpen(true)}>
               <IconPencil size={18} /> {t('Переименовать')}
             </button>
+            {adminDownload ? (
+              <button className="btn btn-compact grow" style={darkBtn} onClick={() => downloadFile(file.id)}>
+                <IconDownload size={18} /> {t('Скачать')}
+              </button>
+            ) : null}
             <button className="btn btn-compact grow" style={{ ...darkBtn, color: '#FCA5A5' }} onClick={() => setDeleteOpen(true)}>
               <IconTrash size={18} /> {t('Удалить')}
             </button>

@@ -15,6 +15,7 @@ import { MenuItem, useMenu } from '../shared/ContextMenu';
 import {
   IconCamera,
   IconDoc,
+  IconDownload,
   IconFile,
   IconFolder,
   IconMove,
@@ -29,6 +30,7 @@ import {
 } from '../shared/icons';
 import { displayName, fmtDuration, fmtSize } from '../shared/russian';
 import { t } from '../shared/i18n';
+import { downloadFile, useIsAdmin } from '../shared/admin';
 import { DocumentEditor } from './DocumentEditor';
 import { RenameDialog, ShareDialog, Viewer } from './Viewer';
 
@@ -43,6 +45,7 @@ interface SearchResult {
 
 export function FilesApp() {
   const isPhone = useIsPhone();
+  const isAdmin = useIsAdmin();
   const menu = useMenu();
   const [state, setState] = useState<StorageState>({ folders: [], rootFileCount: 0 });
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -370,6 +373,10 @@ export function FilesApp() {
     { label: t('Поделиться'), icon: <IconShare size={22} />, onClick: () => setShareFileTarget(file) },
     { label: t('Переместить в другую папку'), icon: <IconMove size={22} />, onClick: () => setMoveFileTarget(file) },
     { label: t('Переименовать'), icon: <IconPencil size={22} />, onClick: () => setRenameFileTarget(file) },
+    // Admin-only (never shown on her devices): save the original video.
+    ...(isAdmin && file.kind === 'video'
+      ? [{ label: t('Скачать'), icon: <IconDownload size={22} />, onClick: () => downloadFile(file.id) }]
+      : []),
     { label: t('Удалить'), danger: true, icon: <IconTrash size={22} />, onClick: () => setDeleteFileTarget(file) },
   ];
 
